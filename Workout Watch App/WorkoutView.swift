@@ -8,77 +8,116 @@
 import SwiftUI
 
 struct WorkoutView: View {
-    @EnvironmentObject var workoutManager: WorkoutManager
+    @Environment(WorkoutManager.self) var workoutManager
     
     var body: some View {
-        VStack(spacing: 0) {
-            // ヘッダー
-            HStack {
-                Text(workoutManager.workoutName)
-                    .font(.headline)
-                Spacer()
-                Button {
-                    endWorkout()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.red)
-                        .font(.title3)
+        ScrollView {
+            VStack(spacing: 8) {
+                // ヘッダー - コンパクト化
+                HStack {
+                    Text(workoutManager.workoutName)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button {
+                        endWorkout()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .font(.title3)
+                    }
+                    .buttonStyle(.plain)
                 }
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-            // メトリクス表示
-            ScrollView {
-                VStack(spacing: 16) {
+                .padding(.horizontal, 4)
+                
+                // 主要メトリクス - 距離とペースを大きく表示
+                VStack(spacing: 4) {
                     // 距離
-                    MetricCardView(
-                        title: "距離",
-                        value: String(format: "%.2f", workoutManager.distance / 1000),
-                        unit: "km",
-                        icon: "figure.run",
-                        color: .blue
-                    )
+                    VStack(spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text(String(format: "%.2f", workoutManager.distance / 1000))
+                                .font(.system(size: 40, weight: .bold, design: .rounded))
+                            Text("km")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "figure.run")
+                                .font(.caption2)
+                            Text("距離")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.blue)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     
-                    // 1km毎のペース
-                    MetricCardView(
-                        title: "現在のペース",
-                        value: workoutManager.currentPaceString,
-                        unit: "min/km",
-                        icon: "speedometer",
-                        color: .orange
+                    // ペース
+                    VStack(spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 2) {
+                            Text(workoutManager.currentPaceString)
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                            Text("min/km")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "speedometer")
+                                .font(.caption2)
+                            Text("ペース")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.orange)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                
+                // サブメトリクス - 2列グリッド
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 4),
+                    GridItem(.flexible(), spacing: 4)
+                ], spacing: 4) {
+                    // 時間
+                    CompactMetricView(
+                        icon: "timer",
+                        value: workoutManager.elapsedTimeString,
+                        label: "時間",
+                        color: .green
                     )
                     
                     // カロリー
-                    MetricCardView(
-                        title: "カロリー",
-                        value: String(format: "%.0f", workoutManager.activeCalories),
-                        unit: "kcal",
+                    CompactMetricView(
                         icon: "flame.fill",
+                        value: String(format: "%.0f", workoutManager.activeCalories),
+                        label: "kcal",
                         color: .red
                     )
                     
-                    // 平均心拍数
-                    MetricCardView(
-                        title: "平均心拍数",
-                        value: String(format: "%.0f", workoutManager.averageHeartRate),
-                        unit: "bpm",
+                    // 心拍数
+                    CompactMetricView(
                         icon: "heart.fill",
+                        value: String(format: "%.0f", workoutManager.averageHeartRate),
+                        label: "bpm",
                         color: .pink
                     )
                     
-                    // 経過時間
-                    MetricCardView(
-                        title: "時間",
-                        value: workoutManager.elapsedTimeString,
-                        unit: "",
-                        icon: "timer",
-                        color: .green
+                    // プレースホルダー（将来の拡張用）
+                    CompactMetricView(
+                        icon: "figure.walk",
+                        value: "--",
+                        label: "歩数",
+                        color: .purple
                     )
                 }
-                .padding()
             }
+            .padding(4)
         }
+        .ignoresSafeArea(edges: .bottom)
     }
     
     private func endWorkout() {
@@ -88,43 +127,39 @@ struct WorkoutView: View {
     }
 }
 
-struct MetricCardView: View {
-    let title: String
-    let value: String
-    let unit: String
+// コンパクトなメトリクスビュー
+struct CompactMetricView: View {
     let icon: String
+    let value: String
+    let label: String
     let color: Color
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
             
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(value)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(0.1))
-        )
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .background(color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
+
+
 #Preview {
     WorkoutView()
-        .environmentObject(WorkoutManager())
+        .environment(WorkoutManager())
 }

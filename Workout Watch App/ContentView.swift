@@ -8,17 +8,18 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(WorkoutManager.self) var workoutManager
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        if workoutManager.isWorkoutActive {
+            WorkoutView()
+        } else {
+            WorkoutTypeSelectionView()
         }
-        .padding()
     }
 }
 
 #Preview {
     ContentView()
+        .environment(WorkoutManager())
 }
