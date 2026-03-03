@@ -19,14 +19,6 @@ struct WorkoutView: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                     Spacer()
-                    Button {
-                        endWorkout()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.red)
-                            .font(.title3)
-                    }
-                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 4)
                 
@@ -114,10 +106,50 @@ struct WorkoutView: View {
                         color: .purple
                     )
                 }
+                
+                // コントロールボタン
+                VStack(spacing: 8) {
+                    // 一時停止/再開ボタン
+                    Button {
+                        togglePause()
+                    } label: {
+                        HStack {
+                            Image(systemName: workoutManager.isPaused ? "play.fill" : "pause.fill")
+                                .font(.title3)
+                            Text(workoutManager.isPaused ? "再開" : "一時停止")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(workoutManager.isPaused ? .green : .orange)
+                    
+                    // ワークアウト終了ボタン
+                    Button {
+                        endWorkout()
+                    } label: {
+                        Text("ワークアウトを終了")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
+                .padding(.top, 8)
             }
             .padding(4)
         }
         .ignoresSafeArea(edges: .bottom)
+    }
+    
+    private func togglePause() {
+        if workoutManager.isPaused {
+            workoutManager.resumeWorkout()
+        } else {
+            workoutManager.pauseWorkout()
+        }
     }
     
     private func endWorkout() {

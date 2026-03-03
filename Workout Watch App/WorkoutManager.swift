@@ -19,6 +19,7 @@ class WorkoutManager: NSObject {
     
     // ワークアウト状態
     var isWorkoutActive = false
+    var isPaused = false
     var workoutName = ""
     
     // メトリクス
@@ -101,6 +102,16 @@ class WorkoutManager: NSObject {
         }
     }
     
+    func pauseWorkout() {
+        session?.pause()
+        isPaused = true
+    }
+    
+    func resumeWorkout() {
+        session?.resume()
+        isPaused = false
+    }
+    
     func endWorkout() async {
         session?.end()
         
@@ -114,6 +125,7 @@ class WorkoutManager: NSObject {
         stopTimer()
         resetMetrics()
         isWorkoutActive = false
+        isPaused = false
     }
     
     // MARK: - Timer
