@@ -8,13 +8,23 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(WorkoutManager.self) var workoutManager
+    @Environment(WorkoutManager.self) private var workoutManager
     
     var body: some View {
-        if workoutManager.isWorkoutActive {
-            WorkoutView()
-        } else {
-            WorkoutTypeSelectionView()
+        @Bindable var manager = workoutManager
+        
+        Group {
+            if manager.isWorkoutActive {
+                WorkoutView()
+                    .transition(.opacity)
+            } else {
+                WorkoutTypeSelectionView()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: manager.isWorkoutActive)
+        .onChange(of: manager.isWorkoutActive) { oldValue, newValue in
+            print("🟡 ContentView: isWorkoutActive changed from \(oldValue) to \(newValue)")
         }
     }
 }
