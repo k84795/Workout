@@ -59,13 +59,13 @@ struct WorkoutView: View {
     private var mainWorkoutView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 8) {
+                VStack(spacing: 4) {
                     // スクロール位置の起点
                     Color.clear
                         .frame(height: 0)
                         .id("top")
                     
-                    // ヘッダー - コンパクト化
+                    // ヘッダー - コンパクト化（時計と同じ高さ）
                     HStack {
                         Text(workoutManager.workoutName)
                             .font(.caption)
@@ -73,19 +73,20 @@ struct WorkoutView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 4)
+                    .padding(.top, 2)
                     
                     // 主要メトリクス - 距離とペースを大きく表示
-                    VStack(spacing: 4) {
+                    VStack(spacing: 2) {
                         // 距離
-                        VStack(spacing: 2) {
+                        VStack(spacing: 0) {
                             HStack(alignment: .firstTextBaseline, spacing: 2) {
                                 Text(String(format: "%.2f", workoutManager.distance / 1000))
-                                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                                    .font(.system(size: 38, weight: .bold, design: .rounded))
                                 Text("km")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "figure.run")
                                     .font(.caption2)
                                 Text("距離")
@@ -94,20 +95,20 @@ struct WorkoutView: View {
                             .foregroundStyle(.blue)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                         .background(Color.blue.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         
                         // ペース
-                        VStack(spacing: 2) {
+                        VStack(spacing: 0) {
                             HStack(alignment: .firstTextBaseline, spacing: 2) {
                                 Text(workoutManager.currentPaceString)
-                                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                                    .font(.system(size: 30, weight: .bold, design: .rounded))
                                 Text("min/km")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
-                            HStack(spacing: 4) {
+                            HStack(spacing: 3) {
                                 Image(systemName: "speedometer")
                                     .font(.caption2)
                                 Text("ペース")
@@ -116,16 +117,16 @@ struct WorkoutView: View {
                             .foregroundStyle(.orange)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 4)
                         .background(Color.orange.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     
                     // サブメトリクス - 2列グリッド
                     LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 4),
-                        GridItem(.flexible(), spacing: 4)
-                    ], spacing: 4) {
+                        GridItem(.flexible(), spacing: 2),
+                        GridItem(.flexible(), spacing: 2)
+                    ], spacing: 2) {
                         // 時間
                         CompactMetricView(
                             icon: "timer",
@@ -210,9 +211,11 @@ struct WorkoutView: View {
                     }
                     .padding(.top, 8)
                 }
-                .padding(4)
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+                .padding(.bottom, 4)
             }
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.top, .bottom])
             .id(scrollViewID)
             .onChange(of: shouldScrollToTop) { _, newValue in
                 // 左画面から再開された時にスクロールを一番上に戻す
@@ -350,13 +353,13 @@ struct CompactMetricView: View {
     let color: Color
     
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Image(systemName: icon)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(color)
             
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             
@@ -365,8 +368,8 @@ struct CompactMetricView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 3)
         .background(color.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
