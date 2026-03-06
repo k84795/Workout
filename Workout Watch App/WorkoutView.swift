@@ -73,7 +73,7 @@ struct WorkoutView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 4)
-                    .padding(.top, 2)
+                    .padding(.top, 6)
                     
                     // 主要メトリクス - 距離とペースを大きく表示
                     VStack(spacing: 2) {

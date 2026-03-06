@@ -19,7 +19,7 @@ struct WorkoutTypeSelectionView: View {
     ]
     
     var body: some View {
-        NavigationStack {
+        VStack(alignment: .leading, spacing: 0) {
             List {
                 ForEach(workoutTypes, id: \.name) { workout in
                     Button {
@@ -35,19 +35,13 @@ struct WorkoutTypeSelectionView: View {
                                 .font(.headline)
                             
                             Spacer()
-                            
-                            if isStarting {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .scaleEffect(0.8)
-                            }
                         }
                         .padding(.vertical, 8)
                     }
                     .disabled(isStarting)
                 }
             }
-            .navigationTitle("ワークアウト")
+            .listStyle(.plain)
         }
     }
     
