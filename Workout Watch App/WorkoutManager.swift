@@ -33,6 +33,7 @@ class WorkoutManager: NSObject {
     var activeCalories: Double = 0.0
     var averageHeartRate: Double = 0.0
     var elapsedTime: TimeInterval = 0.0
+    var stepCount: Double = 0.0 // 歩数
     
     // 1km毎のペース計算用
     private var lastKmTimestamp: Date?
@@ -45,6 +46,10 @@ class WorkoutManager: NSObject {
     // タイマー
     private var timer: Timer?
     
+    // 歩数監視用（ウォーキング専用）
+    private var stepCountTimer: Timer?
+    private var workoutStartDate: Date?
+    
     override init() {
         super.init()
         requestAuthorization()
@@ -55,7 +60,8 @@ class WorkoutManager: NSObject {
         let typesToCheck = [
             HKQuantityType.quantityType(forIdentifier: .heartRate)!,
             HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!
+            HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKQuantityType.quantityType(forIdentifier: .stepCount)!
         ]
         
         for type in typesToCheck {
@@ -75,6 +81,7 @@ class WorkoutManager: NSObject {
             HKQuantityType.quantityType(forIdentifier: .heartRate)!,
             HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
             HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKQuantityType.quantityType(forIdentifier: .stepCount)!,
             HKObjectType.activitySummaryType()
         ]
         
@@ -177,12 +184,13 @@ class WorkoutManager: NSObject {
             
             print("🔵 Delegates configured")
             
+            let startDate = Date()
+            
             // プロパティに割り当て
             self.session = newSession
             self.builder = newBuilder
             self.workoutName = workoutName
-            
-            let startDate = Date()
+            self.workoutStartDate = startDate
             
             print("🔵 Starting session activity...")
             newSession.startActivity(with: startDate)
@@ -215,6 +223,12 @@ class WorkoutManager: NSObject {
             
             // タイマー開始
             startTimer()
+            
+            // 歩数監視を開始（ウォーキングの場合）
+            if activityType == .walking {
+                print("🔵 Starting step count monitoring for walking")
+                startStepCountMonitoring()
+            }
             
             // 最終確認
             print("🔵 ✅ Workout startup complete!")
@@ -404,84 +418,73 @@ class WorkoutManager: NSObject {
         }
     }
     
-    func endWorkout() async {
+    nonisolated func endWorkout() async {
         print("🔴 endWorkout called")
-        print("🔴 Current session state: \(session?.state.rawValue ?? -1)")
-        print("🔴 Current builder: \(builder != nil)")
         
-        // タイマーを先に停止
-        stopTimer()
-        
-        // セッションの参照を保持
-        let currentSession = session
-        let currentBuilder = builder
-        
-        // 参照を即座にクリア（新しいワークアウト開始をブロックしないため）
-        session = nil
-        builder = nil
-        
-        // UIの状態を先に更新（即座に画面を切り替える）
-        isWorkoutActive = false
-        isPaused = false
-        
-        // メトリクスをリセット
-        resetMetrics()
-        
-        // バックグラウンドでクリーンアップを実行
-        Task.detached(priority: .userInitiated) {
-            // ビルダーの終了を先に実行
-            if let currentBuilder = currentBuilder {
-                do {
-                    print("🔴 Ending builder collection...")
-                    try await currentBuilder.endCollection(at: Date())
-                    print("🔴 Finishing builder workout...")
-                    try await currentBuilder.finishWorkout()
-                    print("🔴 Builder finished successfully")
-                } catch {
-                    print("❌ Failed to end builder: \(error.localizedDescription)")
-                }
-                
-                // ビルダーの処理完了を待つ
-                try? await Task.sleep(for: .milliseconds(200))
-            }
+        // MainActorで値を取得
+        let (currentSession, currentBuilder) = await MainActor.run {
+            let currentSession = self.session
+            let currentBuilder = self.builder
             
-            // セッションの終了
-            if let currentSession = currentSession {
-                print("🔴 Ending session...")
-                await MainActor.run {
-                    currentSession.end()
-                }
-                
-                print("🔴 Waiting for session to end...")
-                // セッションの状態が.endedになるまで待機
-                for attempt in 0..<50 { // 最大5秒待つ
-                    if currentSession.state == .ended {
-                        print("🔴 Session successfully ended after \(attempt * 100)ms")
-                        break
-                    }
-                    try? await Task.sleep(for: .milliseconds(100))
-                    
-                    if attempt % 10 == 0 {
-                        print("🔴 Still waiting... session state: \(currentSession.state.rawValue)")
-                    }
-                }
-                
-                if currentSession.state != .ended {
-                    print("⚠️ Session did not end within timeout, state: \(currentSession.state.rawValue)")
-                    print("⚠️ Forcing cleanup despite session state")
-                }
-            }
+            print("🔴 Current session state: \(self.session?.state.rawValue ?? -1)")
+            print("🔴 Current builder: \(self.builder != nil)")
             
-            // 最終的なクリーンアップ待機
-            try? await Task.sleep(for: .milliseconds(500))
+            // タイマーと歩数監視を停止
+            self.stopTimer()
+            self.stopStepCountMonitoring()
             
-            await MainActor.run {
-                print("🔴 Workout cleanup complete")
-                print("🔴 Session is nil: \(self.session == nil)")
-                print("🔴 Builder is nil: \(self.builder == nil)")
-                print("🔴 isWorkoutActive: \(self.isWorkoutActive)")
+            // 参照をクリア
+            self.session = nil
+            self.builder = nil
+            
+            // UIの状態を更新
+            self.isWorkoutActive = false
+            self.isPaused = false
+            
+            // メトリクスをリセット
+            self.resetMetrics()
+            
+            return (currentSession, currentBuilder)
+        }
+        
+        // ビルダーの終了
+        if let currentBuilder = currentBuilder {
+            do {
+                print("🔴 Ending builder collection...")
+                try await currentBuilder.endCollection(at: Date())
+                
+                print("🔴 Finishing builder workout...")
+                try await currentBuilder.finishWorkout()
+                print("🔴 Builder finished successfully")
+            } catch {
+                print("❌ Failed to end builder: \(error.localizedDescription)")
             }
         }
+        
+        // セッションの終了
+        if let currentSession = currentSession {
+            print("🔴 Ending session...")
+            currentSession.end()
+            
+            print("🔴 Waiting for session to end...")
+            for attempt in 0..<50 {
+                if currentSession.state == .ended {
+                    print("🔴 Session successfully ended after \(attempt * 100)ms")
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+                
+                if attempt % 10 == 0 {
+                    print("🔴 Still waiting... session state: \(currentSession.state.rawValue)")
+                }
+            }
+            
+            if currentSession.state != .ended {
+                print("⚠️ Session did not end within timeout, state: \(currentSession.state.rawValue)")
+            }
+        }
+        
+        print("🔴 Workout cleanup complete")
     }
     
     // MARK: - Timer
@@ -536,6 +539,11 @@ class WorkoutManager: NSObject {
             
             // 1km毎のペース計算
             updateCurrentPace(newDistance: newDistance)
+            
+        case HKQuantityType.quantityType(forIdentifier: .stepCount):
+            let stepUnit = HKUnit.count()
+            stepCount = statistics.sumQuantity()?.doubleValue(for: stepUnit) ?? 0
+            print("🚶 Step count from HealthKit: \(stepCount)")
             
         default:
             break
@@ -592,9 +600,85 @@ class WorkoutManager: NSObject {
         averageHeartRate = 0.0
         elapsedTime = 0.0
         currentPace = 0.0
+        stepCount = 0.0
         heartRateHistory.removeAll()
         lastKmTimestamp = nil
         lastKmDistance = 0.0
+        workoutStartDate = nil
+    }
+    
+    // MARK: - Step Count Monitoring
+    
+    private func startStepCountMonitoring() {
+        // 既存のタイマーを停止
+        stopStepCountMonitoring()
+        
+        print("🚶 Starting step count monitoring with timer")
+        
+        // 2秒ごとに歩数を取得
+        stepCountTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                await self.fetchStepCount()
+            }
+        }
+        
+        RunLoop.current.add(stepCountTimer!, forMode: .common)
+    }
+    
+    private func fetchStepCount() async {
+        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount),
+              let startDate = workoutStartDate else {
+            print("⚠️ Cannot fetch step count - stepType or startDate is nil")
+            return
+        }
+        
+        let now = Date()
+        print("🚶 Fetching steps from \(startDate) to \(now)")
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let query = HKStatisticsQuery(
+                quantityType: stepType,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { [weak self] _, result, error in
+                Task { @MainActor in
+                    guard let self = self else {
+                        continuation.resume()
+                        return
+                    }
+                    
+                    if let error = error {
+                        print("❌ Step count query error: \(error.localizedDescription)")
+                        continuation.resume()
+                        return
+                    }
+                    
+                    if let sum = result?.sumQuantity() {
+                        let steps = sum.doubleValue(for: .count())
+                        print("🚶 Query returned \(steps) steps")
+                        if steps != self.stepCount {
+                            print("🚶 Step count updated: \(steps) (previous: \(self.stepCount))")
+                            self.stepCount = steps
+                        }
+                    } else {
+                        print("⚠️ No step count data available from query")
+                        // データがない場合でも0にはしない（既存の値を保持）
+                    }
+                    
+                    continuation.resume()
+                }
+            }
+            
+            self.healthStore.execute(query)
+        }
+    }
+    
+    private func stopStepCountMonitoring() {
+        stepCountTimer?.invalidate()
+        stepCountTimer = nil
+        print("🚶 Stopped step count monitoring")
     }
 }
 
@@ -715,6 +799,10 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
                     let energyUnit = HKUnit.kilocalorie()
                     let calories = statistics?.sumQuantity()?.doubleValue(for: energyUnit) ?? 0
                     print("📊 Calories collected: \(calories) kcal")
+                } else if quantityType == HKQuantityType.quantityType(forIdentifier: .stepCount) {
+                    let stepUnit = HKUnit.count()
+                    let steps = statistics?.sumQuantity()?.doubleValue(for: stepUnit) ?? 0
+                    print("📊 Steps collected: \(steps) steps")
                 }
                 
                 updateForStatistics(statistics)

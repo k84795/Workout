@@ -151,10 +151,10 @@ struct WorkoutView: View {
                             color: .pink
                         )
                         
-                        // プレースホルダー（将来の拡張用）
+                        // 歩数
                         CompactMetricView(
                             icon: "figure.walk",
-                            value: "--",
+                            value: String(format: "%.0f", workoutManager.stepCount),
                             label: "歩数",
                             color: .purple
                         )
@@ -261,7 +261,7 @@ struct WorkoutView: View {
             } label: {
                 HStack {
                     Image(systemName: workoutManager.isPaused ? "play.fill" : "pause.fill")
-                        .font(.title2)
+                        .font(.title3)
                     Text(workoutManager.isPaused ? "再開" : "一時停止")
                         .font(.headline)
                 }
