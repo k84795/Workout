@@ -77,49 +77,102 @@ struct WorkoutView: View {
                     
                     // 主要メトリクス - 距離とペースを大きく表示
                     VStack(spacing: 2) {
-                        // 距離
-                        VStack(spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                Text(String(format: "%.2f", workoutManager.distance / 1000))
-                                    .font(.system(size: 38, weight: .bold, design: .rounded))
-                                Text("km")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                        // 距離と経過時間
+                        HStack(spacing: 2) {
+                            // 距離
+                            VStack(spacing: 0) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "figure.run")
+                                        .font(.caption2)
+                                    Text("距離")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.blue)
+                                
+                                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                    Text(String(format: "%.2f", workoutManager.distance / 1000))
+                                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                                    Text("km")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                             }
-                            HStack(spacing: 3) {
-                                Image(systemName: "figure.run")
-                                    .font(.caption2)
-                                Text("距離")
-                                    .font(.caption2)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            
+                            // 経過時間
+                            VStack(spacing: 0) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "timer")
+                                        .font(.caption2)
+                                    Text("時間")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.green)
+                                
+                                Text(workoutManager.elapsedTimeString)
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                            .foregroundStyle(.blue)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 2)
+                            .background(Color.green.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                         
-                        // ペース
-                        VStack(spacing: 0) {
-                            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                Text(workoutManager.currentPaceString)
-                                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                                Text("min/km")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                        // ペースとカロリー
+                        HStack(spacing: 2) {
+                            // ペース
+                            VStack(spacing: 0) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "speedometer")
+                                        .font(.caption2)
+                                    Text("ペース")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.orange)
+                                
+                                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                    Text(workoutManager.currentPaceString)
+                                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                                    Text("min/km")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                             }
-                            HStack(spacing: 3) {
-                                Image(systemName: "speedometer")
-                                    .font(.caption2)
-                                Text("ペース")
-                                    .font(.caption2)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            
+                            // カロリー
+                            VStack(spacing: 0) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "flame.fill")
+                                        .font(.caption2)
+                                    Text("kcal")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.red)
+                                
+                                Text(String(format: "%.0f", workoutManager.activeCalories))
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .lineLimit(1)
                             }
-                            .foregroundStyle(.orange)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 2)
+                            .background(Color.red.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     
                     // サブメトリクス - 2列グリッド
@@ -127,22 +180,6 @@ struct WorkoutView: View {
                         GridItem(.flexible(), spacing: 2),
                         GridItem(.flexible(), spacing: 2)
                     ], spacing: 2) {
-                        // 時間
-                        CompactMetricView(
-                            icon: "timer",
-                            value: workoutManager.elapsedTimeString,
-                            label: "時間",
-                            color: .green
-                        )
-                        
-                        // カロリー
-                        CompactMetricView(
-                            icon: "flame.fill",
-                            value: String(format: "%.0f", workoutManager.activeCalories),
-                            label: "kcal",
-                            color: .red
-                        )
-                        
                         // 心拍数
                         CompactMetricView(
                             icon: "heart.fill",
@@ -359,7 +396,7 @@ struct CompactMetricView: View {
                 .foregroundStyle(color)
             
             Text(value)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             
