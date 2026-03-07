@@ -18,6 +18,10 @@ struct WorkoutView: View {
     @State private var blinkTimer: Timer?
     @State private var isButtonVisible = true
     
+    // スリープ解除検知用
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var shouldResetScroll = false
+    
     var body: some View {
         TabView(selection: $currentPage) {
             // コントロールページ（0番目・左側）
@@ -62,6 +66,14 @@ struct WorkoutView: View {
         .onDisappear {
             // ビューが消えたらタイマーをクリーンアップ
             stopBlinking()
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            // スリープ解除時（バックグラウンド→アクティブ、非アクティブ→アクティブ）
+            if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
+                print("🌟 Scene became active (woke up), resetting scroll positions")
+                // どの画面にいてもスクロールをリセット（メイン画面のスクロール状態を更新）
+                shouldResetScroll = true
+            }
         }
     }
     
@@ -264,6 +276,17 @@ struct WorkoutView: View {
                     }
                 }
             }
+            .onChange(of: shouldResetScroll) { _, newValue in
+                // スリープ解除時にスクロールを一番上にリセット
+                if newValue {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        withAnimation {
+                            proxy.scrollTo("top", anchor: .top)
+                        }
+                        shouldResetScroll = false
+                    }
+                }
+            }
         }
     }
     
@@ -271,31 +294,88 @@ struct WorkoutView: View {
     private var lapTimesView: some View {
         VStack(spacing: 0) {
             // ヘッダー
-            HStack {
+            HStack(spacing: 4) {
                 Image(systemName: "clock.fill")
-                    .font(.system(size: 12))
+                    .font(.system(size: 10))
                     .foregroundStyle(.cyan)
                 Text("ラップタイム")
-                    .font(.system(size: 14))
+                    .font(.system(size: 12))
                     .fontWeight(.semibold)
+                
+                // 新記録表示
+                if let bestLap = getBestLapInfo() {
+                    Text("新記録 \(bestLap.lapNumber)km／\(formatLapTime(bestLap.lapTime))")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                
                 Spacer()
             }
             .padding(.horizontal, 4)
+            .padding(.top, 4)
             .padding(.bottom, 1)
             
-            // グリッド表示（5列）
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 5)
-            
-            LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(Array(workoutManager.lapTimes.enumerated()), id: \.offset) { index, lapTime in
-                    LapTimeCell(
-                        lapNumber: index + 1,
-                        lapTime: lapTime,
-                        color: lapColor(for: lapTime, in: workoutManager.lapTimes)
-                    )
+            // 独立したスクロールビュー（固定高さ）
+            ScrollViewReader { lapProxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 0) {
+                        // グリッド表示（5列）
+                        let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 5)
+                        
+                        LazyVGrid(columns: columns, spacing: 0) {
+                            ForEach(Array(workoutManager.lapTimes.enumerated()), id: \.offset) { index, lapTime in
+                                LapTimeCell(
+                                    lapNumber: index + 1,
+                                    lapTime: lapTime,
+                                    color: lapColor(for: lapTime, in: workoutManager.lapTimes)
+                                )
+                                .id("lap-\(index)")
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                        
+                        // スクロール位置の目印（最後に追加）
+                        Color.clear
+                            .frame(height: 1)
+                            .id("lapBottom")
+                    }
+                }
+                .frame(height: 70) // 固定高さ（2行分のラップが見える：1-5km、6-10km）
+                .onChange(of: workoutManager.lapTimes.count) { oldCount, newCount in
+                    // 新しいラップが追加されたとき（カウントが増加したとき）
+                    if newCount > oldCount && newCount > 0 {
+                        print("📊 New lap detected: lap count \(oldCount) -> \(newCount), scrolling to bottom")
+                        // レイアウトが確定してからスクロール
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                // 最下部にスクロール
+                                lapProxy.scrollTo("lapBottom", anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+                .onAppear {
+                    // 初期表示時も最新のラップにスクロール
+                    let lapCount = workoutManager.lapTimes.count
+                    if lapCount > 0 {
+                        print("📊 Initial lap scroll: \(lapCount) laps")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            lapProxy.scrollTo("lapBottom", anchor: .bottom)
+                        }
+                    }
+                }
+                .onChange(of: shouldResetScroll) { _, newValue in
+                    // スリープ解除時にラップタイムを最新（一番下）にスクロール
+                    if newValue && workoutManager.lapTimes.count > 0 {
+                        print("📊 Woke up: scrolling laps to bottom")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            lapProxy.scrollTo("lapBottom", anchor: .bottom)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, 2)
         }
     }
     
@@ -316,6 +396,28 @@ struct WorkoutView: View {
         } else {
             return .green // 通常
         }
+    }
+    
+    // 新記録（最速ラップ）の情報を取得
+    private func getBestLapInfo() -> (lapNumber: Int, lapTime: TimeInterval)? {
+        guard !workoutManager.lapTimes.isEmpty else {
+            return nil
+        }
+        
+        // 最速タイムを見つける
+        if let minLapTime = workoutManager.lapTimes.min(),
+           let minIndex = workoutManager.lapTimes.firstIndex(of: minLapTime) {
+            return (lapNumber: minIndex + 1, lapTime: minLapTime)
+        }
+        
+        return nil
+    }
+    
+    // ラップタイムをフォーマット
+    private func formatLapTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time / 60)
+        let seconds = Int(time.truncatingRemainder(dividingBy: 60))
+        return String(format: "%d:%02d", minutes, seconds)
     }
     
     // コントロール専用画面
