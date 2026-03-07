@@ -8,28 +8,31 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(WorkoutManager.self) private var workoutManager
+    @EnvironmentObject private var workoutManager: WorkoutManager
     
     var body: some View {
-        @Bindable var manager = workoutManager
-        
-        Group {
-            if manager.isWorkoutActive {
+        ZStack {
+            if workoutManager.isWorkoutActive {
                 WorkoutView()
-                    .transition(.opacity)
+                    .id("workout-view")
             } else {
                 WorkoutTypeSelectionView()
-                    .transition(.opacity)
+                    .id("selection-view")
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: manager.isWorkoutActive)
-        .onChange(of: manager.isWorkoutActive) { oldValue, newValue in
+        .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
+        .onChange(of: workoutManager.isWorkoutActive) { oldValue, newValue in
             print("🟡 ContentView: isWorkoutActive changed from \(oldValue) to \(newValue)")
+            print("🟡 ContentView: session exists = \(workoutManager.session != nil)")
+            print("🟡 ContentView: builder exists = \(workoutManager.builder != nil)")
+        }
+        .task {
+            print("🟡 ContentView: Initial state - isWorkoutActive = \(workoutManager.isWorkoutActive)")
         }
     }
 }
 
 #Preview {
     ContentView()
-        .environment(WorkoutManager())
+        .environmentObject(WorkoutManager())
 }

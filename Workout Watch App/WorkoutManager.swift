@@ -7,20 +7,21 @@
 
 import Foundation
 import HealthKit
+import Combine
 
 @MainActor
-@Observable
-class WorkoutManager: NSObject {
+class WorkoutManager: NSObject, ObservableObject {
     let healthStore = HKHealthStore()
     
     // ワークアウトセッション
-    var session: HKWorkoutSession?
-    var builder: HKLiveWorkoutBuilder?
+    @Published var session: HKWorkoutSession?
+    @Published var builder: HKLiveWorkoutBuilder?
     
     // ワークアウト状態
-    var isWorkoutActive = false
-    var isPaused = false
-    var workoutName = ""
+    @Published var isWorkoutActive = false
+    @Published var isPaused = false
+    @Published var workoutName = ""
+    @Published var errorMessage: String?
     
     // 権限の状態
     private var isAuthorized = false
@@ -29,16 +30,19 @@ class WorkoutManager: NSObject {
     private var isProcessingPauseResume = false
     
     // メトリクス
-    var distance: Double = 0.0 // メートル
-    var activeCalories: Double = 0.0
-    var averageHeartRate: Double = 0.0
-    var elapsedTime: TimeInterval = 0.0
-    var stepCount: Double = 0.0 // 歩数
+    @Published var distance: Double = 0.0 // メートル
+    @Published var activeCalories: Double = 0.0
+    @Published var averageHeartRate: Double = 0.0
+    @Published var elapsedTime: TimeInterval = 0.0
+    @Published var stepCount: Double = 0.0 // 歩数
     
     // 1km毎のペース計算用
     private var lastKmTimestamp: Date?
     private var lastKmDistance: Double = 0.0
-    var currentPace: TimeInterval = 0.0 // 秒/km
+    @Published var currentPace: TimeInterval = 0.0 // 秒/km
+    
+    // ラップタイム記録（1kmごと）
+    @Published var lapTimes: [TimeInterval] = [] // 各ラップの所要時間（秒）
     
     // 心拍数の履歴（平均計算用）
     private var heartRateHistory: [Double] = []
@@ -50,10 +54,19 @@ class WorkoutManager: NSObject {
     private var stepCountTimer: Timer?
     private var workoutStartDate: Date?
     
+    // シミュレータ用のテストデータ生成
+    #if targetEnvironment(simulator)
+    private var simulatorDataTimer: Timer?
+    private var simulatorDistance: Double = 0.0
+    private var simulatorSteps: Double = 0.0
+    #endif
+    
     override init() {
         super.init()
-        requestAuthorization()
+        
+        print("🔵 WorkoutManager initialized")
         checkAuthorizationStatus()
+        requestAuthorization()
     }
     
     private func checkAuthorizationStatus() {
@@ -85,14 +98,14 @@ class WorkoutManager: NSObject {
             HKObjectType.activitySummaryType()
         ]
         
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] success, error in
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
             Task { @MainActor in
                 if let error = error {
                     print("❌ Authorization failed: \(error.localizedDescription)")
-                    self?.isAuthorized = false
+                    self.isAuthorized = false
                 } else {
                     print("✅ HealthKit authorization success: \(success)")
-                    self?.isAuthorized = success
+                    self.isAuthorized = success
                 }
             }
         }
@@ -101,63 +114,88 @@ class WorkoutManager: NSObject {
     // MARK: - Workout Control
     
     func startWorkout(activityType: HKWorkoutActivityType, workoutName: String) async {
+        print("🔵 ========================================")
         print("🔵 startWorkout called with: \(workoutName)")
         print("🔵 Current isPaused: \(isPaused)")
         print("🔵 Current isWorkoutActive: \(isWorkoutActive)")
         print("🔵 Existing session: \(session != nil), builder: \(builder != nil)")
         print("🔵 Authorization status: \(isAuthorized)")
+        print("🔵 ========================================")
+        
+        // HealthKitが利用可能か確認
+        guard HKHealthStore.isHealthDataAvailable() else {
+            print("❌ HealthKit is not available on this device")
+            errorMessage = "HealthKit is not available on this device"
+            return
+        }
+        
+        print("🔵 HealthKit is available")
+        
+        // シミュレータでは権限チェックを緩和
+        #if targetEnvironment(simulator)
+        print("⚠️ Running in simulator, setting authorized to true")
+        isAuthorized = true
+        #endif
+        
+        // 権限確認（実機のみ厳密にチェック）
+        if !isAuthorized {
+            print("⚠️ Not authorized, requesting...")
+            requestAuthorization()
+            try? await Task.sleep(for: .milliseconds(500))
+            
+            #if !targetEnvironment(simulator)
+            if !isAuthorized {
+                print("❌ Authorization failed")
+                errorMessage = "HealthKit権限が必要です。iPhoneで許可してください。"
+                return
+            }
+            #endif
+        }
+        
+        print("🔵 Authorization OK, proceeding...")
+        errorMessage = nil
         
         // 既存のセッションがあればクリーンアップ
         if let existingSession = session {
             print("🔵 Found existing session (state: \(existingSession.state.rawValue)), cleaning up...")
+            existingSession.end()
             
-            // 既存のビルダーもクリーンアップ
+            // 簡易的な待機（最大500ms）
+            for attempt in 0..<5 {
+                if existingSession.state == .ended {
+                    print("🔵 Existing session ended after \(attempt * 100)ms")
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            
+            // ビルダーもクリーンアップ
             if let existingBuilder = builder {
                 do {
-                    print("🔵 Cleaning up existing builder...")
                     try await existingBuilder.endCollection(at: Date())
                     try await existingBuilder.finishWorkout()
                     print("🔵 Existing builder cleaned up")
                 } catch {
-                    print("⚠️ Error cleaning up builder: \(error.localizedDescription)")
+                    print("⚠️ Error cleaning up builder (continuing anyway): \(error.localizedDescription)")
                 }
-            }
-            
-            // セッションを終了
-            existingSession.end()
-            
-            // セッションの終了を待つ
-            print("🔵 Waiting for existing session to end...")
-            for attempt in 0..<30 { // 最大3秒待つ
-                if existingSession.state == .ended {
-                    print("🔵 Existing session ended successfully after \(attempt * 100)ms")
-                    break
-                }
-                try? await Task.sleep(for: .milliseconds(100))
-                
-                if attempt % 10 == 0 && attempt > 0 {
-                    print("🔵 Still waiting for session to end... (attempt \(attempt))")
-                }
-            }
-            
-            if existingSession.state != .ended {
-                print("⚠️ Existing session did not end properly (state: \(existingSession.state.rawValue)), forcing cleanup")
             }
         }
         
-        // 参照を完全にクリア
+        // 参照をクリア
         session = nil
         builder = nil
         stopTimer()
+        stopStepCountMonitoring()
         resetMetrics()
-        
-        // 状態を確実にリセット
         isWorkoutActive = false
         isPaused = false
         
-        // HealthKitのクリーンアップを確実にするため待機
-        print("🔵 Waiting for HealthKit cleanup...")
-        try? await Task.sleep(for: .milliseconds(500))
+        #if targetEnvironment(simulator)
+        stopSimulatorDataGeneration()
+        #endif
+        
+        // 短い待機（クリーンアップ完了を待つ）
+        try? await Task.sleep(for: .milliseconds(300))
         
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activityType
@@ -168,21 +206,20 @@ class WorkoutManager: NSObject {
             let newSession = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
             let newBuilder = newSession.associatedWorkoutBuilder()
             
-            print("🔵 New session created successfully")
-            print("🔵 New builder created successfully")
+            print("🔵 Session and builder created")
             
             newBuilder.dataSource = HKLiveWorkoutDataSource(
                 healthStore: healthStore,
                 workoutConfiguration: configuration
             )
             
-            print("🔵 Data source configured: \(newBuilder.dataSource != nil)")
+            print("🔵 Data source configured")
             
             // デリゲートを設定
             newSession.delegate = self
             newBuilder.delegate = self
             
-            print("🔵 Delegates configured")
+            print("🔵 Delegates set")
             
             let startDate = Date()
             
@@ -191,78 +228,131 @@ class WorkoutManager: NSObject {
             self.builder = newBuilder
             self.workoutName = workoutName
             self.workoutStartDate = startDate
+            self.lastKmTimestamp = startDate
+            self.lastKmDistance = 0.0
+            self.isPaused = false
             
-            print("🔵 Starting session activity...")
+            print("🔵 Starting session with date: \(startDate)")
             newSession.startActivity(with: startDate)
             
             // セッションの開始を待つ
-            print("🔵 Waiting for session to start...")
+            var sessionReady = false
+            
+            #if targetEnvironment(simulator)
+            // シミュレータでは状態遷移が遅いか不完全なため、短い待機のみ
+            print("⚠️ Simulator mode: Using shorter wait time")
+            try await Task.sleep(for: .milliseconds(500))
+            let currentState = newSession.state
+            print("🔵 Simulator session state after 500ms: \(currentState.rawValue)")
+            
+            // シミュレータでは .prepared または .running を許容
+            if currentState == .running || currentState == .prepared || currentState == .notStarted {
+                print("🔵 ✅ Session ready in simulator (state: \(currentState.rawValue))")
+                sessionReady = true
+            }
+            #else
+            // 実機では .running 状態になるまで待つ
             for attempt in 0..<20 {
-                if newSession.state == .running {
-                    print("🔵 Session started successfully after \(attempt * 50)ms")
+                let currentState = newSession.state
+                print("🔵 Attempt \(attempt): Session state = \(currentState.rawValue)")
+                
+                if currentState == .running {
+                    print("🔵 ✅ Session is running after \(attempt * 100)ms")
+                    sessionReady = true
                     break
+                } else if currentState == .prepared {
+                    print("🔵 Session is prepared, waiting for running state...")
                 }
-                try? await Task.sleep(for: .milliseconds(50))
+                
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            #endif
+            
+            if !sessionReady {
+                print("⚠️ Session state: \(newSession.state.rawValue), attempting to start collection anyway")
             }
             
-            if newSession.state != .running {
-                print("⚠️ Session is not running yet (state: \(newSession.state.rawValue)), continuing anyway")
+            // beginCollectionを呼び出す
+            do {
+                print("🔵 Calling beginCollection with date: \(startDate)")
+                try await newBuilder.beginCollection(at: startDate)
+                print("🔵 ✅ Collection started successfully")
+            } catch let error as NSError {
+                print("❌ beginCollection failed!")
+                print("❌ Error domain: \(error.domain)")
+                print("❌ Error code: \(error.code)")
+                print("❌ Error description: \(error.localizedDescription)")
+                print("❌ Error userInfo: \(error.userInfo)")
+                
+                #if targetEnvironment(simulator)
+                // シミュレータでのエラーは警告として扱い、続行を試みる
+                print("⚠️ Simulator: Ignoring beginCollection error and continuing...")
+                #else
+                // 実機ではエラーを再スロー
+                throw error
+                #endif
             }
-            
-            // コレクション開始
-            print("🔵 Beginning collection...")
-            try await newBuilder.beginCollection(at: startDate)
-            print("🔵 Collection started successfully")
-            
-            // 状態を更新（最後に実行してUIを切り替える）
-            print("🔵 Setting isWorkoutActive = true")
-            isWorkoutActive = true
-            isPaused = false
-            lastKmTimestamp = startDate
-            lastKmDistance = 0.0
-            
-            // タイマー開始
-            startTimer()
             
             // 歩数監視を開始（ウォーキングの場合）
             if activityType == .walking {
-                print("🔵 Starting step count monitoring for walking")
+                print("🔵 Starting step count monitoring")
                 startStepCountMonitoring()
             }
             
-            // 最終確認
-            print("🔵 ✅ Workout startup complete!")
-            print("🔵 Final state - isWorkoutActive: \(isWorkoutActive), isPaused: \(isPaused)")
+            // タイマー開始
+            print("🔵 Starting timer")
+            startTimer()
+            
+            #if targetEnvironment(simulator)
+            // シミュレータ用の模擬データ生成を開始
+            print("⚠️ Simulator: Starting mock data generation")
+            startSimulatorDataGeneration()
+            #endif
+            
+            // 🔥 重要: isWorkoutActiveを更新してUI遷移をトリガー
+            print("🔵 ========================================")
+            print("🔵 ⭐️ Setting isWorkoutActive = true")
+            self.isWorkoutActive = true
+            print("🔵 ✅ isWorkoutActive is now: \(self.isWorkoutActive)")
             print("🔵 Session state: \(newSession.state.rawValue)")
-            print("🔵 Builder has data source: \(newBuilder.dataSource != nil)")
+            print("🔵 Builder: \(newBuilder)")
+            print("🔵 ========================================")
             
-        } catch {
-            print("❌ Failed to start workout: \(error.localizedDescription)")
-            print("❌ Error details: \(error)")
+            print("🔵 ✅ Workout startup complete!")
             
-            // エラーの場合は状態を完全にリセット
-            if let errorSession = session {
-                print("❌ Cleaning up failed session...")
-                errorSession.end()
-                // 終了を待つ
-                for _ in 0..<10 {
-                    if errorSession.state == .ended { 
-                        print("❌ Failed session cleaned up")
-                        break 
-                    }
-                    try? await Task.sleep(for: .milliseconds(100))
-                }
+        } catch let error as NSError {
+            print("❌ ========================================")
+            print("❌ Failed to start workout!")
+            print("❌ Error domain: \(error.domain)")
+            print("❌ Error code: \(error.code)")
+            print("❌ Error description: \(error.localizedDescription)")
+            print("❌ Error userInfo: \(error.userInfo)")
+            
+            #if targetEnvironment(simulator)
+            print("⚠️ Running in simulator")
+            #endif
+            
+            print("❌ ========================================")
+            
+            #if targetEnvironment(simulator)
+            // シミュレータでは一部のエラーを無視して動作テストを可能にする
+            if error.domain == "com.apple.healthkit" || error.domain == NSCocoaErrorDomain {
+                print("⚠️ Simulator: Treating HealthKit error as warning, allowing UI to proceed")
+                errorMessage = "シミュレータモード: データ収集は制限されています"
+                
+                // UIは遷移させる（テスト用）
+                self.isWorkoutActive = true
+                print("⚠️ Simulator: Set isWorkoutActive = true for testing")
+                return
             }
+            #endif
             
-            // ビルダーのクリーンアップ
-            if let errorBuilder = builder {
-                do {
-                    try await errorBuilder.endCollection(at: Date())
-                    try await errorBuilder.finishWorkout()
-                    print("❌ Failed builder cleaned up")
-                } catch {
-                    print("❌ Error cleaning up failed builder: \(error.localizedDescription)")
-                }
+            errorMessage = "ワークアウトの開始に失敗しました: \(error.localizedDescription)"
+            
+            // エラー時のクリーンアップ
+            if let errorSession = session {
+                print("❌ Ending failed session...")
+                errorSession.end()
             }
             
             session = nil
@@ -270,9 +360,14 @@ class WorkoutManager: NSObject {
             isWorkoutActive = false
             isPaused = false
             stopTimer()
+            stopStepCountMonitoring()
             resetMetrics()
             
-            print("❌ Error cleanup complete")
+            #if targetEnvironment(simulator)
+            stopSimulatorDataGeneration()
+            #endif
+            
+            print("❌ Cleanup complete after error")
         }
     }
     
@@ -320,7 +415,7 @@ class WorkoutManager: NSObject {
         
         // 処理完了フラグを一定時間後にリセット
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(500))
+            try? await Task.sleep(for: .milliseconds(200))
             isProcessingPauseResume = false
             print("🟡 Pause processing complete")
         }
@@ -372,7 +467,7 @@ class WorkoutManager: NSObject {
             // セッションの状態変化を非同期で確認
             Task { @MainActor in
                 // まず処理フラグをリセット
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(200))
                 isProcessingPauseResume = false
                 print("🟢 Resume processing complete")
                 
@@ -410,7 +505,7 @@ class WorkoutManager: NSObject {
                 
                 // 処理完了フラグを一定時間後にリセット
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(500))
+                    try? await Task.sleep(for: .milliseconds(200))
                     isProcessingPauseResume = false
                     print("🟢 Resume processing complete (from unexpected state)")
                 }
@@ -432,6 +527,10 @@ class WorkoutManager: NSObject {
             // タイマーと歩数監視を停止
             self.stopTimer()
             self.stopStepCountMonitoring()
+            
+            #if targetEnvironment(simulator)
+            self.stopSimulatorDataGeneration()
+            #endif
             
             // 参照をクリア
             self.session = nil
@@ -494,11 +593,11 @@ class WorkoutManager: NSObject {
         stopTimer()
         
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            // セッションの状態に関わらず経過時間を更新（一時停止中も表示するため）
             Task { @MainActor in
-                guard let self = self,
-                      let session = self.session else { return }
-                
-                // セッションの状態に関わらず経過時間を更新（一時停止中も表示するため）
+                guard let session = self.session else { return }
                 self.elapsedTime = session.startDate?.timeIntervalSinceNow.magnitude ?? 0
             }
         }
@@ -514,6 +613,69 @@ class WorkoutManager: NSObject {
         timer = nil
         print("⏱️ Timer stopped")
     }
+    
+    // MARK: - Simulator Mock Data
+    
+    #if targetEnvironment(simulator)
+    private func startSimulatorDataGeneration() {
+        // 既存のタイマーがあれば停止
+        stopSimulatorDataGeneration()
+        
+        print("⚠️ Simulator: Starting mock data generation")
+        
+        // 初期化
+        simulatorDistance = 0.0
+        simulatorSteps = 0.0
+        
+        // 1秒ごとにデータを更新（ウォーキングペース: 約1.4m/s = 5km/h）
+        simulatorDataTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            Task { @MainActor in
+                // 一時停止中は更新しない
+                guard !self.isPaused else { return }
+                
+                // 距離を増加（約1.4m/秒 = 5km/h のウォーキングペース）
+                self.simulatorDistance += 1.4
+                self.distance = self.simulatorDistance
+                
+                // 歩数を増加（1秒で約2歩）
+                self.simulatorSteps += 2.0
+                self.stepCount = self.simulatorSteps
+                
+                // カロリーを増加（体重70kgの人が5km/hで歩く場合、約3.5kcal/分 = 約0.058kcal/秒）
+                self.activeCalories += 0.058
+                
+                // 心拍数をシミュレート（ウォーキング時の典型的な心拍数: 100-120bpm）
+                let randomHeartRate = Double.random(in: 100...120)
+                self.heartRateHistory.append(randomHeartRate)
+                if self.heartRateHistory.count > 10 {
+                    self.heartRateHistory.removeFirst()
+                }
+                self.averageHeartRate = self.heartRateHistory.reduce(0, +) / Double(self.heartRateHistory.count)
+                
+                // ペースを更新
+                self.updateCurrentPace(newDistance: self.simulatorDistance)
+                
+                // 100mごとにログ出力
+                if Int(self.simulatorDistance) % 100 == 0 && Int(self.simulatorDistance) > 0 {
+                    print("⚠️ Simulator data: \(String(format: "%.1f", self.simulatorDistance))m, \(Int(self.simulatorSteps)) steps, \(String(format: "%.1f", self.activeCalories))kcal, HR: \(Int(self.averageHeartRate))bpm")
+                }
+            }
+        }
+        
+        RunLoop.current.add(simulatorDataTimer!, forMode: .common)
+        print("⚠️ Simulator mock data timer started")
+    }
+    
+    private func stopSimulatorDataGeneration() {
+        simulatorDataTimer?.invalidate()
+        simulatorDataTimer = nil
+        simulatorDistance = 0.0
+        simulatorSteps = 0.0
+        print("⚠️ Simulator mock data generation stopped")
+    }
+    #endif
     
     // MARK: - Metrics Update
     
@@ -553,20 +715,35 @@ class WorkoutManager: NSObject {
     private func updateCurrentPace(newDistance: Double) {
         let distanceSinceLastKm = newDistance - lastKmDistance
         
-        // 1km (1000m) 毎にペースを更新
-        if distanceSinceLastKm >= 1000 {
+        // 🧪 テスト用: 10m毎にラップを記録（ラップ表示を早く確認するため）
+        // 本番環境では 1000.0 (1km) に変更してください
+        let lapDistance: Double = 10.0
+        
+        if distanceSinceLastKm >= lapDistance {
             if let lastTime = lastKmTimestamp {
                 let timeElapsed = Date().timeIntervalSince(lastTime)
-                currentPace = timeElapsed // 1kmあたりの秒数
+                // テスト時も1kmあたりに換算してペースを表示
+                currentPace = timeElapsed * (1000.0 / lapDistance)
+                
+                // ラップタイムを記録（実際の所要時間）
+                lapTimes.append(timeElapsed)
+                print("🏃 Lap \(lapTimes.count): \(formatLapTime(timeElapsed)) (距離: \(lapDistance)m)")
                 
                 lastKmTimestamp = Date()
                 lastKmDistance = newDistance
             }
         } else if distance > 0 && elapsedTime > 0 {
-            // まだ1km到達していない場合は、現在のペースを推定
+            // まだラップ到達していない場合は、現在のペースを推定
             let avgPace = elapsedTime / (distance / 1000.0)
             currentPace = avgPace
         }
+    }
+    
+    // ラップタイムのフォーマット
+    private func formatLapTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time / 60)
+        let seconds = Int(time.truncatingRemainder(dividingBy: 60))
+        return String(format: "%d:%02d", minutes, seconds)
     }
     
     // MARK: - Helper Properties
@@ -605,6 +782,12 @@ class WorkoutManager: NSObject {
         lastKmTimestamp = nil
         lastKmDistance = 0.0
         workoutStartDate = nil
+        lapTimes.removeAll()
+        
+        #if targetEnvironment(simulator)
+        simulatorDistance = 0.0
+        simulatorSteps = 0.0
+        #endif
     }
     
     // MARK: - Step Count Monitoring
@@ -617,8 +800,8 @@ class WorkoutManager: NSObject {
         
         // 2秒ごとに歩数を取得
         stepCountTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                guard let self = self else { return }
                 await self.fetchStepCount()
             }
         }
@@ -642,13 +825,8 @@ class WorkoutManager: NSObject {
                 quantityType: stepType,
                 quantitySamplePredicate: predicate,
                 options: .cumulativeSum
-            ) { [weak self] _, result, error in
+            ) { _, result, error in
                 Task { @MainActor in
-                    guard let self = self else {
-                        continuation.resume()
-                        return
-                    }
-                    
                     if let error = error {
                         print("❌ Step count query error: \(error.localizedDescription)")
                         continuation.resume()
@@ -703,6 +881,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             }
             
             switch toState {
+            case .notStarted:
+                print("🔄 Workout not started")
+                
             case .running:
                 print("🔄 Workout is now running")
                 print("🔄 Setting isPaused = false")
