@@ -58,14 +58,25 @@ struct WorkoutView: View {
         .onAppear {
             // 初期表示はメイン画面
             currentPage = 1
+            // 状態を初期化
+            shouldScrollToTop = false
+            shouldResetScroll = false
+            isTogglingPause = false
+            isButtonVisible = true
             // 既に一時停止状態なら点滅を開始
             if workoutManager.isPaused {
                 startBlinking()
             }
+            print("✅ WorkoutView: onAppear - states initialized")
         }
         .onDisappear {
             // ビューが消えたらタイマーをクリーンアップ
             stopBlinking()
+            // 状態をクリーンアップ
+            shouldScrollToTop = false
+            shouldResetScroll = false
+            isTogglingPause = false
+            print("✅ WorkoutView: onDisappear - cleaned up")
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             // スリープ解除時（バックグラウンド→アクティブ、非アクティブ→アクティブ）
@@ -105,7 +116,7 @@ struct WorkoutView: View {
                             VStack(spacing: 0) {
                                 HStack(alignment: .firstTextBaseline, spacing: 1) {
                                     Text(String(format: "%.2f", workoutManager.distance / 1000))
-                                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
                                     Text("km")
                                         .font(.system(size: 13))
                                         .foregroundStyle(.secondary)
@@ -131,7 +142,7 @@ struct WorkoutView: View {
                             // 経過時間
                             VStack(spacing: 2) {
                                 Text(workoutManager.elapsedTimeString)
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
                                 
@@ -156,7 +167,7 @@ struct WorkoutView: View {
                             VStack(spacing: 0) {
                                 HStack(alignment: .firstTextBaseline, spacing: 1) {
                                     Text(workoutManager.currentPaceString)
-                                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                                        .font(.system(size: 17, weight: .bold, design: .rounded))
                                     Text("min/km")
                                         .font(.system(size: 13))
                                         .foregroundStyle(.secondary)
@@ -182,7 +193,7 @@ struct WorkoutView: View {
                             // カロリー
                             VStack(spacing: 2) {
                                 Text(String(format: "%.0f", workoutManager.activeCalories))
-                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .font(.system(size: 17, weight: .bold, design: .rounded))
                                     .lineLimit(1)
                                 
                                 HStack(spacing: 2) {
@@ -304,11 +315,12 @@ struct WorkoutView: View {
                 
                 // 新記録表示
                 if let bestLap = getBestLapInfo() {
-                    Text("新記録 \(bestLap.lapNumber)km／\(formatLapTime(bestLap.lapTime))")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                    Text("新 \(bestLap.lapNumber)Km/\(formatLapTime(bestLap.lapTime))")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(.red)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.8)
+                        .allowsTightening(true)
                 }
                 
                 Spacer()
@@ -342,7 +354,7 @@ struct WorkoutView: View {
                             .id("lapBottom")
                     }
                 }
-                .frame(height: 70) // 固定高さ（2行分のラップが見える：1-5km、6-10km）
+                .frame(height: 55) // 固定高さ（2行分のラップが見える：1-5km、6-10km）
                 .onChange(of: workoutManager.lapTimes.count) { oldCount, newCount in
                     // 新しいラップが追加されたとき（カウントが増加したとき）
                     if newCount > oldCount && newCount > 0 {
@@ -539,17 +551,38 @@ struct WorkoutView: View {
         blinkTimer?.invalidate()
         blinkTimer = nil
         
-        // 完全に表示状態に戻す
-        withAnimation(.easeOut(duration: 0.2)) {
-            isButtonVisible = true
+        // 完全に表示状態に戻す（アニメーション付き）
+        Task { @MainActor in
+            withAnimation(.easeOut(duration: 0.2)) {
+                isButtonVisible = true
+            }
         }
         
         print("🟢 Blink timer stopped, isButtonVisible = \(isButtonVisible)")
     }
     
     private func endWorkout() {
-        Task {
+        // 点滅タイマーを即座に停止
+        stopBlinking()
+        
+        // スクロール状態をリセット
+        shouldScrollToTop = false
+        shouldResetScroll = false
+        
+        // 一時停止関連の状態をリセット
+        isTogglingPause = false
+        isButtonVisible = true
+        
+        Task { @MainActor in
+            print("🔴 WorkoutView: Starting workout end sequence")
+            
+            // ワークアウトを終了
             await workoutManager.endWorkout()
+            
+            // ページを初期状態に戻す（UIが更新された後）
+            currentPage = 1
+            
+            print("✅ WorkoutView: All states cleaned up after workout end")
         }
     }
 }
@@ -576,6 +609,7 @@ struct LapTimeCell: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
+        .frame(height: 25)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 1)
         .padding(.horizontal, 1)

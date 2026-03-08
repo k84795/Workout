@@ -158,6 +158,11 @@ class WorkoutManager: NSObject, ObservableObject {
         // 既存のセッションがあればクリーンアップ
         if let existingSession = session {
             print("🔵 Found existing session (state: \(existingSession.state.rawValue)), cleaning up...")
+            
+            // デリゲートをクリア
+            existingSession.delegate = nil
+            builder?.delegate = nil
+            
             existingSession.end()
             
             // 簡易的な待機（最大500ms）
@@ -352,9 +357,11 @@ class WorkoutManager: NSObject, ObservableObject {
             // エラー時のクリーンアップ
             if let errorSession = session {
                 print("❌ Ending failed session...")
+                errorSession.delegate = nil
                 errorSession.end()
             }
             
+            builder?.delegate = nil
             session = nil
             builder = nil
             isWorkoutActive = false
@@ -532,18 +539,22 @@ class WorkoutManager: NSObject, ObservableObject {
             self.stopSimulatorDataGeneration()
             #endif
             
-            // 参照をクリア
-            self.session = nil
-            self.builder = nil
-            
-            // UIの状態を更新
-            self.isWorkoutActive = false
-            self.isPaused = false
-            
-            // メトリクスをリセット
-            self.resetMetrics()
-            
             return (currentSession, currentBuilder)
+        }
+        
+        // セッションがアクティブな場合は一旦停止
+        if let currentSession = currentSession, currentSession.state == .running {
+            print("🔴 Pausing session before ending...")
+            currentSession.pause()
+            
+            // 停止を待つ
+            for attempt in 0..<10 {
+                if currentSession.state == .paused {
+                    print("🔴 Session paused after \(attempt * 100)ms")
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
         }
         
         // ビルダーの終了
@@ -557,6 +568,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 print("🔴 Builder finished successfully")
             } catch {
                 print("❌ Failed to end builder: \(error.localizedDescription)")
+                // エラーが発生してもクリーンアップは続行
             }
         }
         
@@ -581,6 +593,26 @@ class WorkoutManager: NSObject, ObservableObject {
             if currentSession.state != .ended {
                 print("⚠️ Session did not end within timeout, state: \(currentSession.state.rawValue)")
             }
+        }
+        
+        // 全ての処理が完了してからUIを更新
+        await MainActor.run {
+            print("🔴 Clearing session references and updating UI")
+            
+            // デリゲートをクリア
+            self.session?.delegate = nil
+            self.builder?.delegate = nil
+            
+            // 参照をクリア
+            self.session = nil
+            self.builder = nil
+            
+            // UIの状態を更新
+            self.isWorkoutActive = false
+            self.isPaused = false
+            
+            // メトリクスをリセット
+            self.resetMetrics()
         }
         
         print("🔴 Workout cleanup complete")
