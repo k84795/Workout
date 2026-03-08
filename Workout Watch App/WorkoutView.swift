@@ -22,6 +22,13 @@ struct WorkoutView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var shouldResetScroll = false
     
+    // 画面サイズに応じたスケール係数
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        // 40mm (162pt) を基準 (1.0)、45mm (184pt) で約1.14、Ultra (205pt) で約1.26
+        return screenWidth / 162.0
+    }
+    
     var body: some View {
         TabView(selection: $currentPage) {
             // コントロールページ（0番目・左側）
@@ -100,13 +107,17 @@ struct WorkoutView: View {
                     
                     // ヘッダー - コンパクト化（時計と同じ高さ）
                     HStack {
+                        Spacer()
+                            .frame(width: 15)
                         Text(workoutManager.workoutName)
-                            .font(.caption)
+                            .font(.system(size: 11 * sizeScale))
                             .fontWeight(.semibold)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                         Spacer()
                     }
                     .padding(.horizontal, 4)
-                    .padding(.top, 12)
+                    .padding(.top, 6)
                     
                     // 主要メトリクス - 距離とペースを大きく表示
                     VStack(spacing: 1) {
@@ -116,23 +127,29 @@ struct WorkoutView: View {
                             VStack(spacing: 0) {
                                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                                     Text(String(format: "%.2f", workoutManager.distance / 1000))
-                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .font(.system(size: 24 * sizeScale, weight: .bold, design: .rounded))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.5)
                                     Text("km")
-                                        .font(.system(size: 17))
+                                        .font(.system(size: 17 * sizeScale))
                                         .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.5)
                                 }
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                                .minimumScaleFactor(0.5)
                                 
                                 Spacer(minLength: 0)
                                 
                                 HStack(spacing: 2) {
                                     Image(systemName: "figure.run")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: 10 * sizeScale))
                                     Text("距離")
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 12 * sizeScale))
                                 }
                                 .foregroundStyle(.blue)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
@@ -142,17 +159,19 @@ struct WorkoutView: View {
                             // 経過時間
                             VStack(spacing: 2) {
                                 Text(workoutManager.elapsedTimeString)
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
+                                    .minimumScaleFactor(0.5)
                                 
                                 HStack(spacing: 2) {
                                     Image(systemName: "timer")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: 10 * sizeScale))
                                     Text("時間")
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 12 * sizeScale))
                                 }
                                 .foregroundStyle(.green)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
@@ -167,23 +186,29 @@ struct WorkoutView: View {
                             VStack(spacing: 0) {
                                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                                     Text(workoutManager.currentPaceString)
-                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                        .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.5)
                                     Text("min/km")
-                                        .font(.system(size: 15))
+                                        .font(.system(size: 15 * sizeScale))
                                         .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.5)
                                 }
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.7)
+                                .minimumScaleFactor(0.5)
                                 
                                 Spacer()
                                 
                                 HStack(spacing: 2) {
                                     Image(systemName: "speedometer")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: 10 * sizeScale))
                                     Text("ペース")
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 12 * sizeScale))
                                 }
                                 .foregroundStyle(.orange)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
@@ -193,16 +218,19 @@ struct WorkoutView: View {
                             // カロリー
                             VStack(spacing: 2) {
                                 Text(String(format: "%.0f", workoutManager.activeCalories))
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.5)
                                 
                                 HStack(spacing: 2) {
                                     Image(systemName: "flame.fill")
-                                        .font(.system(size: 10))
+                                        .font(.system(size: 10 * sizeScale))
                                     Text("kcal")
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 12 * sizeScale))
                                 }
                                 .foregroundStyle(.red)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 2)
@@ -215,7 +243,7 @@ struct WorkoutView: View {
                     // ラップタイム表示セクション
                     if !workoutManager.lapTimes.isEmpty {
                         lapTimesView
-                            .padding(.top, 2)
+                            .padding(.top, 0)
                             .padding(.bottom, 4)
                     }
                     
@@ -244,9 +272,11 @@ struct WorkoutView: View {
                         } label: {
                             HStack {
                                 Image(systemName: workoutManager.isPaused ? "play.fill" : "pause.fill")
-                                    .font(.title3)
+                                    .font(.system(size: 18 * sizeScale))
                                 Text(workoutManager.isPaused ? "再開" : "一時停止")
-                                    .font(.headline)
+                                    .font(.system(size: 17 * sizeScale, weight: .semibold))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.5)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -261,7 +291,9 @@ struct WorkoutView: View {
                             endWorkout()
                         } label: {
                             Text("ワークアウトを終了")
-                                .font(.headline)
+                                .font(.system(size: 25 * sizeScale, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                         }
@@ -271,7 +303,7 @@ struct WorkoutView: View {
                     .padding(.top, 8)
                 }
                 .padding(.horizontal, 4)
-                .padding(.top, 2)
+                .padding(.top, 4)
                 .padding(.bottom, 4)
             }
             .ignoresSafeArea(edges: [.top, .bottom])
@@ -305,21 +337,26 @@ struct WorkoutView: View {
     private var lapTimesView: some View {
         VStack(spacing: 0) {
             // ヘッダー
-            HStack(spacing: 4) {
+            HStack(spacing: 0) {
                 Image(systemName: "clock.fill")
-                    .font(.system(size: 10))
+                    .font(.system(size: 9 * sizeScale))
                     .foregroundStyle(.cyan)
                 Text("ラップタイム")
-                    .font(.system(size: 12))
+                    .font(.system(size: 10 * sizeScale))
                     .fontWeight(.semibold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                
+                Spacer()
+                    .frame(width: 4)
                 
                 // 新記録表示
                 if let bestLap = getBestLapInfo() {
                     Text("新 \(bestLap.lapNumber)Km/\(formatLapTime(bestLap.lapTime))")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(.system(size: 11 * sizeScale, weight: .bold, design: .rounded))
                         .foregroundStyle(.red)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.5)
                         .allowsTightening(true)
                 }
                 
@@ -327,7 +364,7 @@ struct WorkoutView: View {
             }
             .padding(.horizontal, 4)
             .padding(.top, 1)
-            .padding(.bottom, 1)
+            .padding(.bottom, 4)
             
             // 独立したスクロールビュー（固定高さ）
             ScrollViewReader { lapProxy in
@@ -354,7 +391,7 @@ struct WorkoutView: View {
                             .id("lapBottom")
                     }
                 }
-                .frame(height: 65) // 固定高さ（約2.5行分のラップが見える）
+                .frame(height: 65) // 固定高さ（約2行分のラップが見える）
                 .onChange(of: workoutManager.lapTimes.count) { oldCount, newCount in
                     // 新しいラップが追加されたとき（カウントが増加したとき）
                     if newCount > oldCount && newCount > 0 {
@@ -462,9 +499,11 @@ struct WorkoutView: View {
             } label: {
                 HStack {
                     Image(systemName: workoutManager.isPaused ? "play.fill" : "pause.fill")
-                        .font(.title3)
+                        .font(.system(size: 22 * sizeScale))
                     Text(workoutManager.isPaused ? "再開" : "一時停止")
-                        .font(.headline)
+                        .font(.system(size: 20 * sizeScale, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
@@ -479,7 +518,9 @@ struct WorkoutView: View {
                 endWorkout()
             } label: {
                 Text("ワークアウトを終了")
-                    .font(.headline)
+                    .font(.system(size: 28 * sizeScale, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             }
@@ -593,23 +634,31 @@ struct LapTimeCell: View {
     let lapTime: TimeInterval
     let color: Color
     
+    // 画面サイズに応じたスケール係数
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        return screenWidth / 162.0
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // 距離（km）- 上段
             Text("\(lapNumber)km")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13 * sizeScale, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.5)
+                .allowsTightening(true)
             
             // ラップタイム - 下段
             Text(formatLapTime(lapTime))
-                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .font(.system(size: 19 * sizeScale, weight: .bold, design: .rounded))
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.5)
+                .allowsTightening(true)
         }
-        .frame(height: 30)
+        .frame(height: 30 * sizeScale)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 1)
         .padding(.horizontal, 1)
@@ -631,20 +680,28 @@ struct CompactMetricView: View {
     let label: String
     let color: Color
     
+    // 画面サイズに応じたスケール係数
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        return screenWidth / 162.0
+    }
+    
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(.system(size: 11 * sizeScale))
                 .foregroundStyle(color)
             
             Text(value)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: 20 * sizeScale, weight: .bold, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             
             Text(label)
-                .font(.caption2)
+                .font(.system(size: 11 * sizeScale))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
