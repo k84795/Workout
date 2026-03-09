@@ -608,14 +608,21 @@ class WorkoutManager: NSObject, ObservableObject {
             self.builder = nil
             
             // UIの状態を更新
+            print("🔴 Setting isWorkoutActive to false")
             self.isWorkoutActive = false
+            print("🔴 isWorkoutActive is now: \(self.isWorkoutActive)")
+            
             self.isPaused = false
+            print("🔴 isPaused is now: \(self.isPaused)")
             
             // メトリクスをリセット
             self.resetMetrics()
+            
+            print("🔴 UI state update complete - isWorkoutActive: \(self.isWorkoutActive), session: \(self.session != nil)")
         }
         
         print("🔴 Workout cleanup complete")
+        print("🔴 Final verification - isWorkoutActive should be false")
     }
     
     // MARK: - Timer
@@ -941,12 +948,24 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 print("🔄 Current session ended, cleaning up references")
                 stopTimer()
                 
+                // ワークアウトが終了したのでUIを更新
+                print("🔄 Setting isWorkoutActive = false (session ended)")
+                isWorkoutActive = false
+                isPaused = false
+                print("🔄 isWorkoutActive: \(isWorkoutActive), isPaused: \(isPaused)")
+                
             case .prepared:
                 print("🔄 Workout is prepared")
                 
             case .stopped:
                 print("🔄 Workout is stopped")
                 stopTimer()
+                
+                // ワークアウトが停止したのでUIを更新
+                print("🔄 Setting isWorkoutActive = false (session stopped)")
+                isWorkoutActive = false
+                isPaused = false
+                print("🔄 isWorkoutActive: \(isWorkoutActive), isPaused: \(isPaused)")
                 
             @unknown default:
                 print("🔄 Workout in unknown state: \(toState.rawValue)")

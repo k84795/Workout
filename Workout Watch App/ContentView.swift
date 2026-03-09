@@ -11,13 +11,15 @@ struct ContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     
     var body: some View {
-        ZStack {
+        Group {
             if workoutManager.isWorkoutActive {
                 WorkoutView()
                     .id("workout-view")
+                    .transition(.opacity)
             } else {
                 WorkoutTypeSelectionView()
                     .id("selection-view")
+                    .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
@@ -25,6 +27,12 @@ struct ContentView: View {
             print("🟡 ContentView: isWorkoutActive changed from \(oldValue) to \(newValue)")
             print("🟡 ContentView: session exists = \(workoutManager.session != nil)")
             print("🟡 ContentView: builder exists = \(workoutManager.builder != nil)")
+            
+            if !newValue {
+                print("🟡 ContentView: Should now display WorkoutTypeSelectionView")
+            } else {
+                print("🟡 ContentView: Should now display WorkoutView")
+            }
         }
         .task {
             print("🟡 ContentView: Initial state - isWorkoutActive = \(workoutManager.isWorkoutActive)")

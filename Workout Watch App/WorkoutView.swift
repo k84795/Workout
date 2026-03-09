@@ -35,9 +35,13 @@ struct WorkoutView: View {
             controlView
                 .tag(0)
             
-            // メインページ（1番目・右側）
+            // メインページ（1番目・中央）
             mainWorkoutView
                 .tag(1)
+            
+            // ミュージックコントロールページ（2番目・右側）
+            MusicControlView()
+                .tag(2)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .onChange(of: workoutManager.isPaused) { oldValue, newValue in
@@ -620,10 +624,25 @@ struct WorkoutView: View {
             // ワークアウトを終了
             await workoutManager.endWorkout()
             
-            // ページを初期状態に戻す（UIが更新された後）
+            // 状態が確実に更新されるまで待機
+            print("🔴 WorkoutView: Waiting for state update...")
+            print("🔴 WorkoutView: isWorkoutActive = \(workoutManager.isWorkoutActive)")
+            print("🔴 WorkoutView: session = \(workoutManager.session != nil)")
+            
+            // ページを初期状態に戻す
             currentPage = 1
             
+            // 少し待機してから状態を確認
+            try? await Task.sleep(for: .milliseconds(100))
+            
+            if workoutManager.isWorkoutActive {
+                print("⚠️ WorkoutView: isWorkoutActive is still true after endWorkout!")
+                // 強制的にfalseに設定（フォールバック）
+                workoutManager.isWorkoutActive = false
+            }
+            
             print("✅ WorkoutView: All states cleaned up after workout end")
+            print("✅ WorkoutView: Final isWorkoutActive = \(workoutManager.isWorkoutActive)")
         }
     }
 }
