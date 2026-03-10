@@ -312,7 +312,8 @@ class WatchMusicController: ObservableObject {
         // 再生コマンド
         remoteCommandCenter.playCommand.isEnabled = true
         remoteCommandCenter.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return .commandFailed }
+            Task { @MainActor [weak self] in
                 self?.isPlaying = true
                 self?.updateNowPlayingInfoLocal()
             }
@@ -322,7 +323,8 @@ class WatchMusicController: ObservableObject {
         // 一時停止コマンド
         remoteCommandCenter.pauseCommand.isEnabled = true
         remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return .commandFailed }
+            Task { @MainActor [weak self] in
                 self?.isPlaying = false
             }
             return .success
@@ -331,7 +333,8 @@ class WatchMusicController: ObservableObject {
         // 次の曲
         remoteCommandCenter.nextTrackCommand.isEnabled = true
         remoteCommandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return .commandFailed }
+            Task { @MainActor [weak self] in
                 self?.updateNowPlayingInfoLocal()
             }
             return .success
@@ -340,7 +343,8 @@ class WatchMusicController: ObservableObject {
         // 前の曲
         remoteCommandCenter.previousTrackCommand.isEnabled = true
         remoteCommandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return .commandFailed }
+            Task { @MainActor [weak self] in
                 self?.updateNowPlayingInfoLocal()
             }
             return .success
@@ -361,7 +365,8 @@ class WatchMusicController: ObservableObject {
         
         // 定期的に更新
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 
                 if self.isConnectedToPhone {
@@ -463,7 +468,8 @@ class WatchMusicController: ObservableObject {
             connectivityManager?.sendCommand("skipToNext")
             print("🎵 Skip Next → iPhone")
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
                 self?.connectivityManager?.requestNowPlayingInfo()
             }
         } else {
@@ -479,7 +485,8 @@ class WatchMusicController: ObservableObject {
             connectivityManager?.sendCommand("skipToPrevious")
             print("🎵 Skip Previous → iPhone")
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
                 self?.connectivityManager?.requestNowPlayingInfo()
             }
         } else {

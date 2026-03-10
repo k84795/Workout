@@ -11,6 +11,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0A33B32F2F6069720032A9CF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A33B3212F60696F0032A9CF;
+			remoteInfo = "Workout ios";
+		};
+		0A33B3392F6069720032A9CF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A33B3212F60696F0032A9CF;
+			remoteInfo = "Workout ios";
+		};
 		0A61D5912F572FBD00B4E836 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
@@ -49,17 +63,76 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0A33B3222F60696F0032A9CF /* Workout ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Workout ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A33B32E2F6069720032A9CF /* Workout iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A33B3382F6069720032A9CF /* Workout iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D5892F572FBD00B4E836 /* Workout.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Workout.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Workout Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D59E2F572FBE00B4E836 /* Workout Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D5A82F572FBE00B4E836 /* Workout Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0A33B34A2F6069C50032A9CF /* Exceptions for "Workout Watch App" folder in "Workout ios" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PhoneMusicConnectivityManager.swift,
+				WorkoutApp_iOS.swift,
+				WorkoutManager.swift,
+			);
+			platformFiltersByRelativePath = {
+				WorkoutApp_iOS.swift = (ios, );
+			};
+			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
+		};
+		0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "Workout Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PhoneMusicConnectivityManager.swift,
+				WorkoutApp_iOS.swift,
+			);
+			platformFiltersByRelativePath = {
+				WorkoutApp.swift = (watchos, );
+			};
+			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+		};
+		0A33B3532F60E2210032A9CF /* Exceptions for "Workout ios" folder in "Workout ios" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Workout-ios-Info.plist",
+			);
+			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		0A33B3232F60696F0032A9CF /* Workout ios */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0A33B3532F60E2210032A9CF /* Exceptions for "Workout ios" folder in "Workout ios" target */,
+			);
+			path = "Workout ios";
+			sourceTree = "<group>";
+		};
+		0A33B3312F6069720032A9CF /* Workout iosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Workout iosTests";
+			sourceTree = "<group>";
+		};
+		0A33B33B2F6069720032A9CF /* Workout iosUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Workout iosUITests";
+			sourceTree = "<group>";
+		};
 		0A61D5932F572FBD00B4E836 /* Workout Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "Workout Watch App" target */,
+				0A33B34A2F6069C50032A9CF /* Exceptions for "Workout Watch App" folder in "Workout ios" target */,
+			);
 			path = "Workout Watch App";
 			sourceTree = "<group>";
+			usesTabs = 0;
 		};
 		0A61D5A12F572FBE00B4E836 /* Workout Watch AppTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -74,6 +147,27 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0A33B31F2F60696F0032A9CF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B32B2F6069720032A9CF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B3352F6069720032A9CF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0A61D58C2F572FBD00B4E836 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -104,6 +198,9 @@
 				0A61D5932F572FBD00B4E836 /* Workout Watch App */,
 				0A61D5A12F572FBE00B4E836 /* Workout Watch AppTests */,
 				0A61D5AB2F572FBE00B4E836 /* Workout Watch AppUITests */,
+				0A33B3232F60696F0032A9CF /* Workout ios */,
+				0A33B3312F6069720032A9CF /* Workout iosTests */,
+				0A33B33B2F6069720032A9CF /* Workout iosUITests */,
 				0A61D58A2F572FBD00B4E836 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -115,6 +212,9 @@
 				0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */,
 				0A61D59E2F572FBE00B4E836 /* Workout Watch AppTests.xctest */,
 				0A61D5A82F572FBE00B4E836 /* Workout Watch AppUITests.xctest */,
+				0A33B3222F60696F0032A9CF /* Workout ios.app */,
+				0A33B32E2F6069720032A9CF /* Workout iosTests.xctest */,
+				0A33B3382F6069720032A9CF /* Workout iosUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -122,6 +222,74 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0A33B3212F60696F0032A9CF /* Workout ios */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A33B3402F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout ios" */;
+			buildPhases = (
+				0A33B31E2F60696F0032A9CF /* Sources */,
+				0A33B31F2F60696F0032A9CF /* Frameworks */,
+				0A33B3202F60696F0032A9CF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0A33B3232F60696F0032A9CF /* Workout ios */,
+			);
+			name = "Workout ios";
+			packageProductDependencies = (
+			);
+			productName = "Workout ios";
+			productReference = 0A33B3222F60696F0032A9CF /* Workout ios.app */;
+			productType = "com.apple.product-type.application";
+		};
+		0A33B32D2F6069720032A9CF /* Workout iosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A33B3432F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout iosTests" */;
+			buildPhases = (
+				0A33B32A2F6069720032A9CF /* Sources */,
+				0A33B32B2F6069720032A9CF /* Frameworks */,
+				0A33B32C2F6069720032A9CF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0A33B3302F6069720032A9CF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0A33B3312F6069720032A9CF /* Workout iosTests */,
+			);
+			name = "Workout iosTests";
+			packageProductDependencies = (
+			);
+			productName = "Workout iosTests";
+			productReference = 0A33B32E2F6069720032A9CF /* Workout iosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		0A33B3372F6069720032A9CF /* Workout iosUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A33B3462F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout iosUITests" */;
+			buildPhases = (
+				0A33B3342F6069720032A9CF /* Sources */,
+				0A33B3352F6069720032A9CF /* Frameworks */,
+				0A33B3362F6069720032A9CF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0A33B33A2F6069720032A9CF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0A33B33B2F6069720032A9CF /* Workout iosUITests */,
+			);
+			name = "Workout iosUITests";
+			packageProductDependencies = (
+			);
+			productName = "Workout iosUITests";
+			productReference = 0A33B3382F6069720032A9CF /* Workout iosUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		0A61D5882F572FBC00B4E836 /* Workout */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0A61D5B62F572FBE00B4E836 /* Build configuration list for PBXNativeTarget "Workout" */;
@@ -133,6 +301,9 @@
 			);
 			dependencies = (
 				0A61D5922F572FBD00B4E836 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				0A61D5932F572FBD00B4E836 /* Workout Watch App */,
 			);
 			name = Workout;
 			packageProductDependencies = (
@@ -219,6 +390,17 @@
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					0A33B3212F60696F0032A9CF = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					0A33B32D2F6069720032A9CF = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 0A33B3212F60696F0032A9CF;
+					};
+					0A33B3372F6069720032A9CF = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 0A33B3212F60696F0032A9CF;
+					};
 					0A61D5882F572FBC00B4E836 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -253,11 +435,35 @@
 				0A61D58E2F572FBD00B4E836 /* Workout Watch App */,
 				0A61D59D2F572FBE00B4E836 /* Workout Watch AppTests */,
 				0A61D5A72F572FBE00B4E836 /* Workout Watch AppUITests */,
+				0A33B3212F60696F0032A9CF /* Workout ios */,
+				0A33B32D2F6069720032A9CF /* Workout iosTests */,
+				0A33B3372F6069720032A9CF /* Workout iosUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		0A33B3202F60696F0032A9CF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B32C2F6069720032A9CF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B3362F6069720032A9CF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0A61D5872F572FBC00B4E836 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -289,6 +495,27 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0A33B31E2F60696F0032A9CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B32A2F6069720032A9CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A33B3342F6069720032A9CF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0A61D58B2F572FBD00B4E836 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -313,6 +540,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0A33B3302F6069720032A9CF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
+			targetProxy = 0A33B32F2F6069720032A9CF /* PBXContainerItemProxy */;
+		};
+		0A33B33A2F6069720032A9CF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
+			targetProxy = 0A33B3392F6069720032A9CF /* PBXContainerItemProxy */;
+		};
 		0A61D5922F572FBD00B4E836 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
@@ -331,6 +568,175 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		0A33B3412F6069720032A9CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Workout ios/Workout ios.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトのデータを記録するためにHealthKitを使用します";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ークアウトのデータをHealthKitに保存します";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0A33B3422F6069720032A9CF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Workout ios/Workout ios.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトのデータを記録するためにHealthKitを使用します";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ークアウトのデータをHealthKitに保存します";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0A33B3442F6069720032A9CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Workout ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Workout ios";
+			};
+			name = Debug;
+		};
+		0A33B3452F6069720032A9CF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-iosTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Workout ios.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Workout ios";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0A33B3472F6069720032A9CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Workout ios";
+			};
+			name = Debug;
+		};
+		0A33B3482F6069720032A9CF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 43TFR2CHXP;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-iosUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Workout ios";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		0A61D5B02F572FBE00B4E836 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -527,6 +933,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				INFOPLIST_KEY_CFBundleDisplayName = Workout;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.Workout;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -544,6 +951,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				INFOPLIST_KEY_CFBundleDisplayName = Workout;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.Workout;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -650,6 +1058,33 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A33B3402F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout ios" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A33B3412F6069720032A9CF /* Debug */,
+				0A33B3422F6069720032A9CF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0A33B3432F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout iosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A33B3442F6069720032A9CF /* Debug */,
+				0A33B3452F6069720032A9CF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0A33B3462F6069720032A9CF /* Build configuration list for PBXNativeTarget "Workout iosUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A33B3472F6069720032A9CF /* Debug */,
+				0A33B3482F6069720032A9CF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		0A61D5862F572FBC00B4E836 /* Build configuration list for PBXProject "Workout" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

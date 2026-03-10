@@ -7,6 +7,7 @@
 
 #if os(iOS)
 import Foundation
+import Combine
 import WatchConnectivity
 import MediaPlayer
 
@@ -73,7 +74,8 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
             
             // 再生時間
             info["playbackTime"] = musicPlayer.currentPlaybackTime
-            if let duration = nowPlayingItem.playbackDuration as? TimeInterval {
+            let duration = nowPlayingItem.playbackDuration
+            if duration > 0 {
                 info["duration"] = duration
             }
         }

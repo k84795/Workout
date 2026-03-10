@@ -58,11 +58,24 @@ struct WorkoutView: View {
             }
         }
         .onChange(of: currentPage) { oldValue, newValue in
+            print("📱 Page changed from \(oldValue) to \(newValue)")
+            
             // ページが切り替わったときに一時停止中なら点滅を再開
             if workoutManager.isPaused {
                 // 少し遅延させてからアニメーションを再開（TabViewのアニメーション後）
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     startBlinking()
+                }
+            }
+            
+            // 左画面(0)または右画面(2)からメイン画面(1)に戻った時、スクロールを一番上にリセット
+            // ただし、一時停止中（再生ボタン表示中）はスクロールをリセットしない
+            if newValue == 1 && (oldValue == 0 || oldValue == 2) {
+                if !workoutManager.isPaused {
+                    print("📱 Returned to main view from side page, resetting scroll position")
+                    shouldScrollToTop = true
+                } else {
+                    print("📱 Returned to main view but paused, keeping scroll position")
                 }
             }
         }
@@ -313,13 +326,14 @@ struct WorkoutView: View {
             .ignoresSafeArea(edges: [.top, .bottom])
             .id(scrollViewID)
             .onChange(of: shouldScrollToTop) { _, newValue in
-                // 左画面から再開された時にスクロールを一番上に戻す
+                // 左画面または右画面から戻った時、またはコントロール画面から再開された時にスクロールを一番上に戻す
                 if newValue {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        withAnimation(.easeOut(duration: 0.3)) {
                             proxy.scrollTo("top", anchor: .top)
                         }
                         shouldScrollToTop = false
+                        print("✅ Scroll reset to top completed")
                     }
                 }
             }

@@ -113,19 +113,25 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Workout Control
     
-    func startWorkout(activityType: HKWorkoutActivityType, workoutName: String) async {
+    nonisolated func startWorkout(activityType: HKWorkoutActivityType, workoutName: String) async {
         print("🔵 ========================================")
         print("🔵 startWorkout called with: \(workoutName)")
-        print("🔵 Current isPaused: \(isPaused)")
-        print("🔵 Current isWorkoutActive: \(isWorkoutActive)")
-        print("🔵 Existing session: \(session != nil), builder: \(builder != nil)")
-        print("🔵 Authorization status: \(isAuthorized)")
+        
+        // MainActorで現在の状態を取得
+        await MainActor.run {
+            print("🔵 Current isPaused: \(self.isPaused)")
+            print("🔵 Current isWorkoutActive: \(self.isWorkoutActive)")
+            print("🔵 Existing session: \(self.session != nil), builder: \(self.builder != nil)")
+            print("🔵 Authorization status: \(self.isAuthorized)")
+        }
         print("🔵 ========================================")
         
         // HealthKitが利用可能か確認
         guard HKHealthStore.isHealthDataAvailable() else {
             print("❌ HealthKit is not available on this device")
-            errorMessage = "HealthKit is not available on this device"
+            await MainActor.run {
+                self.errorMessage = "HealthKit is not available on this device"
+            }
             return
         }
         
@@ -134,77 +140,90 @@ class WorkoutManager: NSObject, ObservableObject {
         // シミュレータでは権限チェックを緩和
         #if targetEnvironment(simulator)
         print("⚠️ Running in simulator, setting authorized to true")
-        isAuthorized = true
+        await MainActor.run {
+            self.isAuthorized = true
+        }
         #endif
         
         // 権限確認（実機のみ厳密にチェック）
-        if !isAuthorized {
+        let isAuthorizedValue = await MainActor.run { self.isAuthorized }
+        if !isAuthorizedValue {
             print("⚠️ Not authorized, requesting...")
-            requestAuthorization()
+            await MainActor.run {
+                self.requestAuthorization()
+            }
             try? await Task.sleep(for: .milliseconds(500))
             
             #if !targetEnvironment(simulator)
-            if !isAuthorized {
+            let stillNotAuthorized = await MainActor.run { !self.isAuthorized }
+            if stillNotAuthorized {
                 print("❌ Authorization failed")
-                errorMessage = "HealthKit権限が必要です。iPhoneで許可してください。"
+                await MainActor.run {
+                    self.errorMessage = "HealthKit権限が必要です。iPhoneで許可してください。"
+                }
                 return
             }
             #endif
         }
         
         print("🔵 Authorization OK, proceeding...")
-        errorMessage = nil
+        await MainActor.run {
+            self.errorMessage = nil
+        }
         
         // 既存のセッションがあればクリーンアップ
-        if let existingSession = session {
+        let existingSession = await MainActor.run { self.session }
+        let existingBuilder = await MainActor.run { self.builder }
+        
+        if let existingSession = existingSession {
             print("🔵 Found existing session (state: \(existingSession.state.rawValue)), cleaning up...")
             
             // デリゲートをクリア
-            existingSession.delegate = nil
-            builder?.delegate = nil
-            
-            existingSession.end()
-            
-            // 簡易的な待機（最大500ms）
-            for attempt in 0..<5 {
-                if existingSession.state == .ended {
-                    print("🔵 Existing session ended after \(attempt * 100)ms")
-                    break
-                }
-                try? await Task.sleep(for: .milliseconds(100))
+            await MainActor.run {
+                existingSession.delegate = nil
+                self.builder?.delegate = nil
             }
             
-            // ビルダーもクリーンアップ
-            if let existingBuilder = builder {
-                do {
-                    try await existingBuilder.endCollection(at: Date())
-                    try await existingBuilder.finishWorkout()
-                    print("🔵 Existing builder cleaned up")
-                } catch {
-                    print("⚠️ Error cleaning up builder (continuing anyway): \(error.localizedDescription)")
+            existingSession.end()
+            print("🔵 Existing session end() called (not waiting for completion)")
+            
+            // ビルダーもクリーンアップ（エラーは無視）
+            if let existingBuilder = existingBuilder {
+                Task {
+                    do {
+                        try await existingBuilder.endCollection(at: Date())
+                        try await existingBuilder.finishWorkout()
+                        print("🔵 Existing builder cleaned up")
+                    } catch {
+                        print("⚠️ Error cleaning up builder (ignoring): \(error.localizedDescription)")
+                    }
                 }
             }
         }
         
         // 参照をクリア
-        session = nil
-        builder = nil
-        stopTimer()
-        stopStepCountMonitoring()
-        resetMetrics()
-        isWorkoutActive = false
-        isPaused = false
+        await MainActor.run {
+            self.session = nil
+            self.builder = nil
+            self.stopTimer()
+            self.stopStepCountMonitoring()
+            self.resetMetrics()
+            self.isWorkoutActive = false
+            self.isPaused = false
+            
+            #if targetEnvironment(simulator)
+            self.stopSimulatorDataGeneration()
+            #endif
+        }
         
-        #if targetEnvironment(simulator)
-        stopSimulatorDataGeneration()
-        #endif
-        
-        // 短い待機（クリーンアップ完了を待つ）
-        try? await Task.sleep(for: .milliseconds(300))
+        print("🔵 Ready to create new session")
         
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activityType
         configuration.locationType = .outdoor
+        
+        // healthStoreを取得
+        let healthStore = await MainActor.run { self.healthStore }
         
         do {
             print("🔵 Creating new workout session...")
@@ -220,105 +239,108 @@ class WorkoutManager: NSObject, ObservableObject {
             
             print("🔵 Data source configured")
             
-            // デリゲートを設定
-            newSession.delegate = self
-            newBuilder.delegate = self
+            // デリゲートを設定（MainActorで）
+            await MainActor.run {
+                newSession.delegate = self
+                newBuilder.delegate = self
+            }
             
             print("🔵 Delegates set")
             
             let startDate = Date()
             
-            // プロパティに割り当て
-            self.session = newSession
-            self.builder = newBuilder
-            self.workoutName = workoutName
-            self.workoutStartDate = startDate
-            self.lastKmTimestamp = startDate
-            self.lastKmDistance = 0.0
-            self.isPaused = false
+            // プロパティに割り当て（MainActorで）
+            await MainActor.run {
+                self.session = newSession
+                self.builder = newBuilder
+                self.workoutName = workoutName
+                self.workoutStartDate = startDate
+                self.lastKmTimestamp = startDate
+                self.lastKmDistance = 0.0
+                self.isPaused = false
+            }
             
             print("🔵 Starting session with date: \(startDate)")
             newSession.startActivity(with: startDate)
             
-            // セッションの開始を待つ
-            var sessionReady = false
+            // 待機を削除 - デリゲートメソッドでUI更新を行う
+            print("🔵 Session started, state will change via delegate")
             
-            #if targetEnvironment(simulator)
-            // シミュレータでは状態遷移が遅いか不完全なため、短い待機のみ
-            print("⚠️ Simulator mode: Using shorter wait time")
-            try await Task.sleep(for: .milliseconds(500))
-            let currentState = newSession.state
-            print("🔵 Simulator session state after 500ms: \(currentState.rawValue)")
+            // beginCollectionを呼び出す（タイムアウト付き）
+            print("🔵 Calling beginCollection with date: \(startDate)")
             
-            // シミュレータでは .prepared または .running を許容
-            if currentState == .running || currentState == .prepared || currentState == .notStarted {
-                print("🔵 ✅ Session ready in simulator (state: \(currentState.rawValue))")
-                sessionReady = true
-            }
-            #else
-            // 実機では .running 状態になるまで待つ
-            for attempt in 0..<20 {
-                let currentState = newSession.state
-                print("🔵 Attempt \(attempt): Session state = \(currentState.rawValue)")
-                
-                if currentState == .running {
-                    print("🔵 ✅ Session is running after \(attempt * 100)ms")
-                    sessionReady = true
-                    break
-                } else if currentState == .prepared {
-                    print("🔵 Session is prepared, waiting for running state...")
+            do {
+                // タイムアウト処理を追加（5秒）
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    // beginCollection タスク
+                    group.addTask {
+                        try await newBuilder.beginCollection(at: startDate)
+                    }
+                    
+                    // タイムアウトタスク
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(5))
+                        throw NSError(domain: "WorkoutManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "beginCollection timeout"])
+                    }
+                    
+                    // 最初に完了したタスクの結果を使用
+                    try await group.next()
+                    
+                    // 残りのタスクをキャンセル
+                    group.cancelAll()
                 }
                 
-                try await Task.sleep(for: .milliseconds(100))
-            }
-            #endif
-            
-            if !sessionReady {
-                print("⚠️ Session state: \(newSession.state.rawValue), attempting to start collection anyway")
-            }
-            
-            // beginCollectionを呼び出す
-            do {
-                print("🔵 Calling beginCollection with date: \(startDate)")
-                try await newBuilder.beginCollection(at: startDate)
                 print("🔵 ✅ Collection started successfully")
-            } catch let error as NSError {
-                print("❌ beginCollection failed!")
-                print("❌ Error domain: \(error.domain)")
-                print("❌ Error code: \(error.code)")
-                print("❌ Error description: \(error.localizedDescription)")
-                print("❌ Error userInfo: \(error.userInfo)")
+            } catch {
+                print("❌ beginCollection failed or timed out: \(error.localizedDescription)")
                 
                 #if targetEnvironment(simulator)
-                // シミュレータでのエラーは警告として扱い、続行を試みる
+                // シミュレータではエラーを無視
                 print("⚠️ Simulator: Ignoring beginCollection error and continuing...")
                 #else
-                // 実機ではエラーを再スロー
-                throw error
+                // 実機でもタイムアウトの場合は続行を試みる
+                if error.localizedDescription.contains("timeout") {
+                    print("⚠️ Timeout occurred, continuing anyway...")
+                } else {
+                    throw error
+                }
                 #endif
             }
             
             // 歩数監視を開始（ウォーキングの場合）
             if activityType == .walking {
                 print("🔵 Starting step count monitoring")
-                startStepCountMonitoring()
+                await MainActor.run {
+                    self.startStepCountMonitoring()
+                }
             }
             
             // タイマー開始
             print("🔵 Starting timer")
-            startTimer()
+            await MainActor.run {
+                self.startTimer()
+            }
             
             #if targetEnvironment(simulator)
             // シミュレータ用の模擬データ生成を開始
             print("⚠️ Simulator: Starting mock data generation")
-            startSimulatorDataGeneration()
+            await MainActor.run {
+                self.startSimulatorDataGeneration()
+            }
             #endif
             
             // 🔥 重要: isWorkoutActiveを更新してUI遷移をトリガー
             print("🔵 ========================================")
             print("🔵 ⭐️ Setting isWorkoutActive = true")
-            self.isWorkoutActive = true
-            print("🔵 ✅ isWorkoutActive is now: \(self.isWorkoutActive)")
+            print("🔵 About to call MainActor.run for UI update...")
+            await MainActor.run {
+                print("🔵 Inside MainActor.run block")
+                // エラーメッセージをクリア（タイムアウトエラーが先に設定されていた場合）
+                self.errorMessage = nil
+                self.isWorkoutActive = true
+                print("🔵 ✅ isWorkoutActive is now: \(self.isWorkoutActive)")
+            }
+            print("🔵 MainActor.run completed")
             print("🔵 Session state: \(newSession.state.rawValue)")
             print("🔵 Builder: \(newBuilder)")
             print("🔵 ========================================")
@@ -343,38 +365,47 @@ class WorkoutManager: NSObject, ObservableObject {
             // シミュレータでは一部のエラーを無視して動作テストを可能にする
             if error.domain == "com.apple.healthkit" || error.domain == NSCocoaErrorDomain {
                 print("⚠️ Simulator: Treating HealthKit error as warning, allowing UI to proceed")
-                errorMessage = "シミュレータモード: データ収集は制限されています"
-                
-                // UIは遷移させる（テスト用）
-                self.isWorkoutActive = true
-                print("⚠️ Simulator: Set isWorkoutActive = true for testing")
+                await MainActor.run {
+                    self.errorMessage = "シミュレータモード: データ収集は制限されています"
+                    
+                    // UIは遷移させる（テスト用）
+                    self.isWorkoutActive = true
+                    print("⚠️ Simulator: Set isWorkoutActive = true for testing")
+                }
                 return
             }
             #endif
             
-            errorMessage = "ワークアウトの開始に失敗しました: \(error.localizedDescription)"
+            await MainActor.run {
+                self.errorMessage = "ワークアウトの開始に失敗しました: \(error.localizedDescription)"
+            }
             
             // エラー時のクリーンアップ
-            if let errorSession = session {
+            let errorSession = await MainActor.run { self.session }
+            if let errorSession = errorSession {
                 print("❌ Ending failed session...")
-                errorSession.delegate = nil
+                await MainActor.run {
+                    errorSession.delegate = nil
+                }
                 errorSession.end()
             }
             
-            builder?.delegate = nil
-            session = nil
-            builder = nil
-            isWorkoutActive = false
-            isPaused = false
-            stopTimer()
-            stopStepCountMonitoring()
-            resetMetrics()
-            
-            #if targetEnvironment(simulator)
-            stopSimulatorDataGeneration()
-            #endif
-            
-            print("❌ Cleanup complete after error")
+            await MainActor.run {
+                self.builder?.delegate = nil
+                self.session = nil
+                self.builder = nil
+                self.isWorkoutActive = false
+                self.isPaused = false
+                self.stopTimer()
+                self.stopStepCountMonitoring()
+                self.resetMetrics()
+                
+                #if targetEnvironment(simulator)
+                self.stopSimulatorDataGeneration()
+                #endif
+                
+                print("❌ Cleanup complete after error")
+            }
         }
     }
     
