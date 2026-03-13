@@ -11,7 +11,9 @@ struct ContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     
     var body: some View {
-        Group {
+        let _ = print("🟡 ContentView body evaluated - isWorkoutActive: \(workoutManager.isWorkoutActive)")
+        
+        return Group {
             if workoutManager.isWorkoutActive {
                 WorkoutView()
                     .id("workout-view")

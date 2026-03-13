@@ -18,6 +18,14 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
     private let session: WCSession? = WCSession.isSupported() ? WCSession.default : nil
     private let musicPlayer = MPMusicPlayerController.systemMusicPlayer
     
+    // 公開プロパティ（iPhone単体モードで使用）
+    @Published var isPlaying: Bool = false
+    @Published var currentTrackTitle: String? = nil
+    @Published var currentArtist: String? = nil
+    @Published var currentAlbum: String? = nil
+    @Published var playbackTime: TimeInterval = 0
+    @Published var duration: TimeInterval = 0
+    
     private override init() {
         super.init()
         
@@ -28,6 +36,9 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         
         // 音楽プレイヤーの通知を監視
         setupMusicNotifications()
+        
+        // 初期状態を更新
+        updateMusicState()
     }
     
     // 音楽の通知をセットアップ
@@ -40,6 +51,7 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
+            self?.updateMusicState()
             self?.sendMusicInfoToWatch()
         }
         
@@ -49,7 +61,35 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
+            self?.updateMusicState()
             self?.sendMusicInfoToWatch()
+        }
+    }
+    
+    // 音楽の状態を更新（iPhone単体モード用）
+    private func updateMusicState() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            // 再生状態
+            self.isPlaying = self.musicPlayer.playbackState == .playing
+            
+            // 現在再生中の曲情報
+            if let nowPlayingItem = self.musicPlayer.nowPlayingItem {
+                self.currentTrackTitle = nowPlayingItem.title
+                self.currentArtist = nowPlayingItem.artist
+                self.currentAlbum = nowPlayingItem.albumTitle
+                
+                // 再生時間
+                self.playbackTime = self.musicPlayer.currentPlaybackTime
+                self.duration = nowPlayingItem.playbackDuration
+            } else {
+                self.currentTrackTitle = nil
+                self.currentArtist = nil
+                self.currentAlbum = nil
+                self.playbackTime = 0
+                self.duration = 0
+            }
         }
     }
     
@@ -99,8 +139,8 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         })
     }
     
-    // 再生/一時停止のトグル
-    private func togglePlayPause() {
+    // 再生/一時停止のトグル（公開メソッド - iPhone単体モードでも使用可能）
+    func togglePlayPause() {
         if musicPlayer.playbackState == .playing {
             musicPlayer.pause()
             print("🎵 Music paused")
@@ -111,34 +151,37 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         
         // すぐにWatchに更新を送信
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.updateMusicState()
             self?.sendMusicInfoToWatch()
         }
     }
     
-    // 次の曲へ
-    private func skipToNext() {
+    // 次の曲へ（公開メソッド - iPhone単体モードでも使用可能）
+    func skipToNext() {
         musicPlayer.skipToNextItem()
         print("🎵 Skipped to next track")
         
-        // 少し遅延してから情報を送信
+        // 少し遅延してから情報を更新
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateMusicState()
             self?.sendMusicInfoToWatch()
         }
     }
     
-    // 前の曲へ
-    private func skipToPrevious() {
+    // 前の曲へ（公開メソッド - iPhone単体モードでも使用可能）
+    func skipToPrevious() {
         musicPlayer.skipToPreviousItem()
         print("🎵 Skipped to previous track")
         
-        // 少し遅延してから情報を送信
+        // 少し遅延してから情報を更新
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateMusicState()
             self?.sendMusicInfoToWatch()
         }
     }
     
-    // 音量を設定
-    private func setVolume(_ volume: Double) {
+    // 音量を設定（公開メソッド - iPhone単体モードでも使用可能）
+    func setVolume(_ volume: Double) {
         // MPMusicPlayerControllerには音量設定がないため、
         // MPVolumeViewやAVAudioSessionを使用する必要がある
         // ここではログのみ

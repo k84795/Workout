@@ -233,15 +233,18 @@ struct PhoneWorkoutView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
                             MetricCard(
                                 title: "距離",
-                                value: String(format: "%.2f", workoutManager.distance / 1000.0),
+                                value: String(format: "%.2f", max(0, workoutManager.distance / 1000.0)),
                                 unit: "km",
                                 icon: "figure.walk",
                                 color: .blue
                             )
+                            .onChange(of: workoutManager.distance) { oldValue, newValue in
+                                print("📱 iOS UI - Distance changed: \(String(format: "%.2f", oldValue))m -> \(String(format: "%.2f", newValue))m (displayed: \(String(format: "%.3f", newValue/1000.0))km)")
+                            }
                             
                             MetricCard(
                                 title: "カロリー",
-                                value: String(format: "%.0f", workoutManager.activeCalories),
+                                value: String(format: "%.0f", max(0, workoutManager.activeCalories)),
                                 unit: "kcal",
                                 icon: "flame.fill",
                                 color: .orange
@@ -249,7 +252,7 @@ struct PhoneWorkoutView: View {
                             
                             MetricCard(
                                 title: "平均心拍数",
-                                value: String(format: "%.0f", workoutManager.averageHeartRate),
+                                value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
                                 unit: "bpm",
                                 icon: "heart.fill",
                                 color: .red
@@ -266,7 +269,7 @@ struct PhoneWorkoutView: View {
                             if workoutManager.workoutName == "ウォーキング" {
                                 MetricCard(
                                     title: "歩数",
-                                    value: String(format: "%.0f", workoutManager.stepCount),
+                                    value: String(format: "%.0f", max(0, workoutManager.stepCount)),
                                     unit: "歩",
                                     icon: "figure.walk.motion",
                                     color: .purple
