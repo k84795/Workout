@@ -164,6 +164,8 @@ struct PhoneWorkoutView: View {
     @State private var isButtonVisible = true
     @State private var blinkTimer: Timer?
     @State private var shouldScrollToTop = false
+    @State private var cachedBestLapText: String? = nil
+    @State private var lastLapCount: Int = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -203,97 +205,92 @@ struct PhoneWorkoutView: View {
             if workoutManager.isPaused {
                 startBlinking()
             }
+            updateBestLapTextIfNeeded()
         }
         .onDisappear {
             stopBlinking()
+        }
+        .onChange(of: workoutManager.lapTimes.count) { oldValue, newValue in
+            if newValue != lastLapCount {
+                updateBestLapTextIfNeeded()
+            }
         }
     }
     
     private var mainWorkoutView: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(spacing: 24) {
-                        Text(workoutManager.workoutName)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .padding(.top)
-                            .id("top")
-                        
-                        VStack(spacing: 4) {
-                            Text("経過時間")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text(workoutManager.elapsedTimeString)
-                                .font(.system(size: 56, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical)
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
-                            MetricCard(
-                                title: "距離",
-                                value: String(format: "%.2f", max(0, workoutManager.distance / 1000.0)),
-                                unit: "km",
-                                icon: "figure.walk",
-                                color: .blue
-                            )
-                            .onChange(of: workoutManager.distance) { oldValue, newValue in
-                                print("📱 iOS UI - Distance changed: \(String(format: "%.2f", oldValue))m -> \(String(format: "%.2f", newValue))m (displayed: \(String(format: "%.3f", newValue/1000.0))km)")
-                            }
-                            
-                            MetricCard(
-                                title: "カロリー",
-                                value: String(format: "%.0f", max(0, workoutManager.activeCalories)),
-                                unit: "kcal",
-                                icon: "flame.fill",
-                                color: .orange
-                            )
-                            
-                            MetricCard(
-                                title: "平均心拍数",
-                                value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
-                                unit: "bpm",
-                                icon: "heart.fill",
-                                color: .red
-                            )
-                            
-                            MetricCard(
-                                title: "ペース",
-                                value: workoutManager.currentPaceString,
-                                unit: "/km",
-                                icon: "timer",
-                                color: .green
-                            )
-                            
-                            if workoutManager.workoutName == "ウォーキング" {
-                                MetricCard(
-                                    title: "歩数",
-                                    value: String(format: "%.0f", max(0, workoutManager.stepCount)),
-                                    unit: "歩",
-                                    icon: "figure.walk.motion",
-                                    color: .purple
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                        
-                        Spacer(minLength: 20)
-                        
-                        controlButtons(proxy: proxy)
-                            .padding(.bottom, 40)
+            VStack(spacing: 12) {
+                Text(workoutManager.workoutName)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .padding(.top, 8)
+                
+                VStack(spacing: 2) {
+                    Text("経過時間")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Text(workoutManager.elapsedTimeString)
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .padding(.vertical, 8)
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    MetricCard(
+                        title: "距離",
+                        value: String(format: "%.2f", max(0, workoutManager.distance / 1000.0)),
+                        unit: "km",
+                        icon: "figure.walk",
+                        color: .blue
+                    )
+                    .onChange(of: workoutManager.distance) { oldValue, newValue in
+                        print("📱 iOS UI - Distance changed: \(String(format: "%.2f", oldValue))m -> \(String(format: "%.2f", newValue))m (displayed: \(String(format: "%.3f", newValue/1000.0))km)")
+                    }
+                    
+                    MetricCard(
+                        title: "カロリー",
+                        value: String(format: "%.0f", max(0, workoutManager.activeCalories)),
+                        unit: "kcal",
+                        icon: "flame.fill",
+                        color: .orange
+                    )
+                    
+                    MetricCard(
+                        title: "平均心拍数",
+                        value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
+                        unit: "bpm",
+                        icon: "heart.fill",
+                        color: .red
+                    )
+                    
+                    MetricCardWithRecord(
+                        title: "ペース",
+                        value: workoutManager.currentPaceString,
+                        unit: "/km",
+                        icon: "timer",
+                        color: .green,
+                        recordText: cachedBestLapText
+                    )
+                    .id("pace-card-\(workoutManager.lapTimes.count)")
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cachedBestLapText)
+                    
+                    if workoutManager.workoutName == "ウォーキング" {
+                        MetricCard(
+                            title: "歩数",
+                            value: String(format: "%.0f", max(0, workoutManager.stepCount)),
+                            unit: "歩",
+                            icon: "figure.walk.motion",
+                            color: .purple
+                        )
                     }
                 }
-                .onChange(of: shouldScrollToTop) { _, newValue in
-                    if newValue {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo("top", anchor: .top)
-                            }
-                            shouldScrollToTop = false
-                        }
-                    }
-                }
+                .padding(.horizontal)
+                
+                Spacer(minLength: 4)
+                
+                controlButtons()
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
             }
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -310,13 +307,14 @@ struct PhoneWorkoutView: View {
                 } else {
                     ForEach(Array(workoutManager.lapTimes.enumerated()), id: \.offset) { index, time in
                         HStack {
-                            Text("ラップ \(index + 1)")
+                            Text("\(index + 1)km")
                                 .font(.headline)
                             Spacer()
                             Text(formatLapTime(time))
                                 .font(.title3)
                                 .fontWeight(.semibold)
                                 .monospacedDigit()
+                                .foregroundStyle(lapColor(for: time, at: index))
                         }
                         .padding(.vertical, 8)
                     }
@@ -326,28 +324,41 @@ struct PhoneWorkoutView: View {
         }
     }
     
-    private func controlButtons(proxy: ScrollViewProxy) -> some View {
+    private func lapColor(for time: TimeInterval, at index: Int) -> Color {
+        guard !workoutManager.lapTimes.isEmpty else { return .green }
+        guard workoutManager.lapTimes.count > 1 else { return .green }
+        
+        let fastest = workoutManager.lapTimes.min() ?? 0
+        let slowest = workoutManager.lapTimes.max() ?? 0
+        
+        // 最速記録は常に赤（抜かれない限り赤文字）
+        if time == fastest {
+            return .red
+        }
+        // 最遅記録は青
+        else if time == slowest && fastest != slowest {
+            return .blue
+        }
+        // その他は緑
+        else {
+            return .green
+        }
+    }
+    
+    private func controlButtons() -> some View {
         HStack(spacing: 20) {
             Button {
-                let wasPaused = workoutManager.isPaused
                 if workoutManager.isPaused {
                     workoutManager.resumeWorkout()
                 } else {
                     workoutManager.pauseWorkout()
-                }
-                if wasPaused == true {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("top", anchor: .top)
-                        }
-                    }
                 }
             } label: {
                 Label(
                     workoutManager.isPaused ? "再開" : "一時停止",
                     systemImage: workoutManager.isPaused ? "play.fill" : "pause.fill"
                 )
-                .font(.headline)
+                .font(.system(size: 25, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
                 .background(Color.blue)
@@ -362,7 +373,7 @@ struct PhoneWorkoutView: View {
                 }
             } label: {
                 Label("終了", systemImage: "xmark")
-                    .font(.headline)
+                    .font(.system(size: 25, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(Color.red)
@@ -370,13 +381,13 @@ struct PhoneWorkoutView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
-        .padding(.horizontal)
     }
     
     private func formatLapTime(_ time: TimeInterval) -> String {
-        let minutes = Int(time / 60)
+        let hours = Int(time / 3600)
+        let minutes = Int(time.truncatingRemainder(dividingBy: 3600) / 60)
         let seconds = Int(time.truncatingRemainder(dividingBy: 60))
-        return String(format: "%d:%02d", minutes, seconds)
+        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
     }
     
     private func startBlinking() {
@@ -393,6 +404,33 @@ struct PhoneWorkoutView: View {
         blinkTimer = nil
         isButtonVisible = true
     }
+    
+    private func updateBestLapTextIfNeeded() {
+        let currentLapCount = workoutManager.lapTimes.count
+        
+        // ラップ数が変わった場合のみ更新
+        if currentLapCount != lastLapCount {
+            lastLapCount = currentLapCount
+            cachedBestLapText = calculateBestLapText()
+        }
+    }
+    
+    private func calculateBestLapText() -> String? {
+        guard !workoutManager.lapTimes.isEmpty else { return nil }
+        
+        // 全ラップの中で最速のタイムを取得
+        guard let fastest = workoutManager.lapTimes.min() else { return nil }
+        
+        // 最速ラップのインデックスを取得（1-based）
+        guard let fastestIndex = workoutManager.lapTimes.firstIndex(of: fastest) else { return nil }
+        let kmNumber = fastestIndex + 1
+        
+        // 最速記録を formatLapTime と同じ形式で表示
+        let hours = Int(fastest / 3600)
+        let minutes = Int(fastest.truncatingRemainder(dividingBy: 3600) / 60)
+        let seconds = Int(fastest.truncatingRemainder(dividingBy: 60))
+        return "\(kmNumber)km/\(String(format: "%d:%02d:%02d", hours, minutes, seconds))"
+    }
 }
 
 struct MetricCard: View {
@@ -404,22 +442,96 @@ struct MetricCard: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            HStack {
+            HStack(spacing: 4) {
                 Image(systemName: icon)
                     .foregroundStyle(color)
-                    .font(.title3)
+                    .font(.system(size: 30))
                 Spacer()
             }
+            
+            // 新記録表示用のスペーサー（高さを揃えるため）
+            VStack(alignment: .leading, spacing: 2) {
+                Text(" ")
+                    .font(.system(size: 21, weight: .bold))
+                    .opacity(0)
+                Text(" ")
+                    .font(.system(size: 24, weight: .bold))
+                    .opacity(0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.caption)
+                    .font(.headline)
                     .foregroundStyle(.secondary)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(value)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
                         .monospacedDigit()
                     Text(unit)
-                        .font(.caption)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct MetricCardWithRecord: View {
+    let title: String
+    let value: String
+    let unit: String
+    let icon: String
+    let color: Color
+    let recordText: String?
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                    .font(.system(size: 30))
+                Spacer()
+            }
+            
+            // 新記録表示エリア（常にスペースを確保）
+            VStack(alignment: .leading, spacing: 2) {
+                if let recordText = recordText {
+                    Text("新記録")
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundStyle(.red)
+                    Text(recordText)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.red)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                } else {
+                    // 新記録がない場合も同じ高さを確保
+                    Text(" ")
+                        .font(.system(size: 21, weight: .bold))
+                        .opacity(0)
+                    Text(" ")
+                        .font(.system(size: 24, weight: .bold))
+                        .opacity(0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(value)
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text(unit)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
             }
