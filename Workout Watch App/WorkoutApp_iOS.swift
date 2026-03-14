@@ -173,9 +173,10 @@ struct PhoneWorkoutView: View {
     @State private var cachedBestLapText: String? = nil
     @State private var lastLapCount: Int = 0
     @State private var isEditMode = false
-    @State private var cardOrder: [MetricCardType] = [.distance, .calories, .heartRate, .pace, .steps, .marathon]
+    @State private var visibleCards: [MetricCardType] = [.distance, .calories, .heartRate, .pace, .steps, .marathon]
     @State private var draggingCard: MetricCardType?
     @State private var longPressTriggered: MetricCardType? = nil
+    @State private var showAddCardMenu = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -214,7 +215,7 @@ struct PhoneWorkoutView: View {
                 startBlinking()
             }
             updateBestLapTextIfNeeded()
-            loadCardOrder()
+            loadCardConfiguration()
         }
         .onDisappear {
             stopBlinking()
@@ -326,13 +327,46 @@ struct PhoneWorkoutView: View {
                             }
                             .padding(.vertical, 4)
                             
+                            // ＋ボタン（編集モード時のみ表示、カードが全て表示されていない場合のみ）
+                            HStack {
+                                Spacer()
+                                
+                                if isEditMode && visibleCards.count < MetricCardType.allCases.count {
+                                    Button {
+                                        showAddCardMenu = true
+                                    } label: {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 32))
+                                            .foregroundStyle(.blue)
+                                            .symbolEffect(.bounce, value: showAddCardMenu)
+                                    }
+                                    .padding(.trailing, 20)
+                                    .transition(.scale.combined(with: .opacity))
+                                    .confirmationDialog("カードを追加", isPresented: $showAddCardMenu) {
+                                        ForEach(availableCardsToAdd(), id: \.self) { cardType in
+                                            Button(cardTypeDisplayName(cardType)) {
+                                                addCard(cardType)
+                                            }
+                                        }
+                                        Button("キャンセル", role: .cancel) {}
+                                    } message: {
+                                        Text("追加するカードを選択してください")
+                                    }
+                                }
+                            }
+                            .frame(height: isEditMode && visibleCards.count < MetricCardType.allCases.count ? 40 : 0)
+                            .opacity(isEditMode && visibleCards.count < MetricCardType.allCases.count ? 1 : 0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isEditMode)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: visibleCards.count)
+                            
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(cardOrder) { cardType in
+                                ForEach(visibleCards) { cardType in
                                     DraggableCardView(
                                         cardType: cardType,
                                         isEditMode: $isEditMode,
                                         draggingCard: $draggingCard,
-                                        cardOrder: $cardOrder,
+                                        cardOrder: $visibleCards,
+                                        canDelete: cardType != .distance,
                                         onEnterEditMode: {
                                             if !isEditMode {
                                                 print("👆 長押し検出: \(cardType.rawValue)")
@@ -342,6 +376,9 @@ struct PhoneWorkoutView: View {
                                                     self.draggingCard = cardType
                                                 }
                                             }
+                                        },
+                                        onDelete: {
+                                            removeCard(cardType)
                                         },
                                         cardContent: {
                                             cardView(for: cardType)
@@ -698,32 +735,78 @@ struct PhoneWorkoutView: View {
         }
         draggingCard = nil
         
-        // 順番を保存
-        saveCardOrder()
+        // 設定を保存
+        saveCardConfiguration()
     }
     
-    private func saveCardOrder() {
-        let orderStrings = cardOrder.map { $0.rawValue }
-        UserDefaults.standard.set(orderStrings, forKey: "cardOrder")
-        print("💾 カード順序を保存: \(orderStrings)")
+    private func saveCardConfiguration() {
+        let orderStrings = visibleCards.map { $0.rawValue }
+        UserDefaults.standard.set(orderStrings, forKey: "visibleCards")
+        print("💾 カード設定を保存: \(orderStrings)")
     }
     
-    private func loadCardOrder() {
-        guard let orderStrings = UserDefaults.standard.array(forKey: "cardOrder") as? [String] else {
-            print("📂 保存されたカード順序が見つかりません。デフォルト順序を使用します。")
+    private func loadCardConfiguration() {
+        guard let orderStrings = UserDefaults.standard.array(forKey: "visibleCards") as? [String] else {
+            print("📂 保存された設定が見つかりません。デフォルト設定を使用します。")
             return
         }
         
-        let loadedOrder = orderStrings.compactMap { MetricCardType(rawValue: $0) }
+        let loadedCards = orderStrings.compactMap { MetricCardType(rawValue: $0) }
         
-        // すべてのカードタイプが含まれている場合のみ適用
-        if loadedOrder.count == MetricCardType.allCases.count {
-            cardOrder = loadedOrder
-            print("✅ カード順序を読み込み: \(orderStrings)")
+        // 少なくとも距離カードが含まれている場合のみ適用
+        if loadedCards.contains(.distance) && !loadedCards.isEmpty {
+            visibleCards = loadedCards
+            print("✅ カード設定を読み込み: \(orderStrings)")
         } else {
-            print("⚠️ 保存されたカード順序が不完全です。デフォルト順序を使用します。")
-            print("   保存されていた順序: \(orderStrings)")
-            print("   期待されるカード数: \(MetricCardType.allCases.count), 実際: \(loadedOrder.count)")
+            print("⚠️ 保存された設定が不正です。デフォルト設定を使用します。")
+            print("   保存されていた設定: \(orderStrings)")
+        }
+    }
+    
+    private func availableCardsToAdd() -> [MetricCardType] {
+        MetricCardType.allCases.filter { !visibleCards.contains($0) }
+    }
+    
+    private func cardTypeDisplayName(_ cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "距離"
+        case .calories: return "カロリー"
+        case .heartRate: return "平均心拍数"
+        case .pace: return "ペース"
+        case .steps: return "歩数"
+        case .marathon: return "フルマラソン予想"
+        }
+    }
+    
+    private func addCard(_ cardType: MetricCardType) {
+        guard !visibleCards.contains(cardType) else { return }
+        
+        print("➕ カード追加: \(cardType.rawValue)")
+        
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.success)
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            visibleCards.append(cardType)
+        }
+    }
+    
+    private func removeCard(_ cardType: MetricCardType) {
+        // 距離カードは削除できない
+        guard cardType != .distance else {
+            print("⚠️ 距離カードは削除できません")
+            return
+        }
+        
+        guard visibleCards.contains(cardType) else { return }
+        
+        print("🗑️ カード削除: \(cardType.rawValue)")
+        
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.warning)
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            visibleCards.removeAll { $0 == cardType }
         }
     }
 }
@@ -867,37 +950,37 @@ struct MarathonTimeCard: View {
     let icon: String
     let color: Color
     
+    @EnvironmentObject private var workoutManager: WorkoutManager
+    
+    // 完走予想タイムと残り時間を計算
+    private var marathonTimes: (total: TimeInterval, remaining: TimeInterval)? {
+        guard let remaining = remainingTime, remaining > 0 else { return nil }
+        let total = remaining + workoutManager.elapsedTime
+        return (total: total, remaining: remaining)
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-            // アイコン上部の空間
             Spacer()
-                .frame(height: 8)
             
-            // アイコンエリア（固定）
+            // 「今のペースなら」とアイコン表示エリア（他のカードと高さを揃えるため）
             HStack(spacing: 4) {
                 Image(systemName: icon)
                     .foregroundStyle(color)
-                    .font(.system(size: 22))
-                Spacer()
-            }
-            .padding(.top, 10)
-            .padding(.horizontal, 10)
-            
-            Spacer()
-            
-            // 「今のペースなら」表示エリア（他のカードと高さを揃えるため）
-            VStack(spacing: 0) {
+                    .font(.system(size: 20))
                 Text("今のペースなら")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.cyan)
                     .lineLimit(1)
+                Spacer()
             }
             .frame(height: 20)
+            .padding(.top, 10)
             .padding(.bottom, 2)
             .padding(.horizontal, 10)
             
             // タイトルと値エリア
-            VStack(spacing: 2) {
+            VStack(spacing: 0) {
                 HStack {
                     Text(title)
                         .font(.system(size: 19))
@@ -905,38 +988,49 @@ struct MarathonTimeCard: View {
                     Spacer()
                 }
                 
-                VStack(spacing: -2) {
-                    // 「残り」を左寄せ
-                    HStack {
-                        Text("残り")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    
-                    // タイムを歩数カードと同じサイズ(48pt)で表示
+                if let times = marathonTimes {
+                    // 完走予想タイム
                     HStack(alignment: .firstTextBaseline, spacing: 0) {
-                        if let time = remainingTime {
-                            Text(formatMarathonTime(time))
-                                .font(.system(size: 48, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .minimumScaleFactor(0.5)
-                                .lineLimit(1)
-                        } else {
-                            Text("--:--:--")
-                                .font(.system(size: 20, weight: .medium, design: .rounded))
+                        Text(formatMarathonTime(times.total))
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                    }
+                    .frame(height: 38)
+                    
+                    // 残り時間表示（大きく、2行）
+                    VStack(spacing: 0) {
+                        HStack(spacing: 0) {
+                            Text("残り")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                            Text(formatMarathonTime(times.remaining))
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                        }
+                        HStack {
+                            Spacer()
+                            Text("でゴール")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    
-                    // 「でゴール」を右寄せ
-                    HStack {
-                        Spacer()
-                        Text("でゴール")
-                            .font(.system(size: 14))
+                    .frame(height: 38)
+                } else {
+                    // データがない場合
+                    VStack(spacing: 2) {
+                        Text("--:--:--")
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .monospacedDigit()
                             .foregroundStyle(.secondary)
+                            .frame(height: 38)
+                        
+                        Text("計測中...")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                            .frame(height: 38)
                     }
                 }
             }
@@ -1302,43 +1396,67 @@ struct DraggableCardView<Content: View>: View {
     @Binding var isEditMode: Bool
     @Binding var draggingCard: MetricCardType?
     @Binding var cardOrder: [MetricCardType]
+    let canDelete: Bool
     let onEnterEditMode: () -> Void
+    let onDelete: () -> Void
     @ViewBuilder let cardContent: () -> Content
     
     var body: some View {
-        cardContent()
-            .modifier(WiggleModifier(isWiggling: isEditMode))
-            .scaleEffect(draggingCard == cardType ? 1.05 : 1.0)
-            .opacity(draggingCard == cardType ? 0.7 : 1.0)
-            .zIndex(draggingCard == cardType ? 1 : 0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: draggingCard)
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: cardOrder)
-            // 編集モードでない時は長押しで編集モードに入る
-            .if(!isEditMode) { view in
-                view.onLongPressGesture(minimumDuration: 0.3) {
-                    print("👆 長押し完了（編集モード開始）: \(cardType.rawValue)")
-                    onEnterEditMode()
+        ZStack(alignment: .topTrailing) {
+            cardContent()
+                .modifier(WiggleModifier(isWiggling: isEditMode))
+                .scaleEffect(draggingCard == cardType ? 1.05 : 1.0)
+                .opacity(draggingCard == cardType ? 0.7 : 1.0)
+                .zIndex(draggingCard == cardType ? 1 : 0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: draggingCard)
+                .animation(.spring(response: 0.3, dampingFraction: 0.75), value: cardOrder)
+                // 編集モードでない時は長押しで編集モードに入る
+                .if(!isEditMode) { view in
+                    view.onLongPressGesture(minimumDuration: 0.3) {
+                        print("👆 長押し完了（編集モード開始）: \(cardType.rawValue)")
+                        onEnterEditMode()
+                    }
                 }
-            }
-            // 常にドラッグ可能（編集モード時のみ実際に動作）
-            .onDrag {
-                guard isEditMode else {
-                    print("⚠️ 編集モードではないためドラッグ不可")
-                    return NSItemProvider()
+                // 常にドラッグ可能（編集モード時のみ実際に動作）
+                .onDrag {
+                    guard isEditMode else {
+                        print("⚠️ 編集モードではないためドラッグ不可")
+                        return NSItemProvider()
+                    }
+                    
+                    print("🎯 onDrag呼び出し: \(cardType.rawValue)")
+                    let feedback = UIImpactFeedbackGenerator(style: .light)
+                    feedback.impactOccurred()
+                    draggingCard = cardType
+                    return NSItemProvider(object: cardType.rawValue as NSString)
                 }
-                
-                print("🎯 onDrag呼び出し: \(cardType.rawValue)")
-                let feedback = UIImpactFeedbackGenerator(style: .light)
-                feedback.impactOccurred()
-                draggingCard = cardType
-                return NSItemProvider(object: cardType.rawValue as NSString)
+                .onDrop(of: [.text], delegate: ImprovedCardDropDelegate(
+                    currentCard: cardType,
+                    cardOrder: $cardOrder,
+                    draggingCard: $draggingCard,
+                    isEditMode: isEditMode
+                ))
+            
+            // ❌バッジ（編集モード時のみ表示、削除可能なカードのみ）
+            if isEditMode && canDelete {
+                Button {
+                    onDelete()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 28, height: 28)
+                        
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .offset(x: 8, y: -8)
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(2)
             }
-            .onDrop(of: [.text], delegate: ImprovedCardDropDelegate(
-                currentCard: cardType,
-                cardOrder: $cardOrder,
-                draggingCard: $draggingCard,
-                isEditMode: isEditMode
-            ))
+        }
     }
 }
 
