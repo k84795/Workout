@@ -96,21 +96,11 @@
 			};
 			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
 		};
-		0A33B3532F60E2210032A9CF /* Exceptions for "Workout ios" folder in "Workout ios" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Workout-ios-Info.plist",
-			);
-			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A33B3232F60696F0032A9CF /* Workout ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0A33B3532F60E2210032A9CF /* Exceptions for "Workout ios" folder in "Workout ios" target */,
-			);
 			path = "Workout ios";
 			sourceTree = "<group>";
 		};

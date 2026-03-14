@@ -1,27 +1,35 @@
 //
-//  Watch​Music​Controller.swift
+//  WatchMusicControlView.swift
 //  Workout Watch App
 //
 //  Created by 山中雄樹 on 2026/03/12.
 //
 
+#if os(watchOS)
 import SwiftUI
 import WatchKit
 import AVFoundation
 
 struct MusicControlView: View {
-    @State private var isPlaying = false
+    @StateObject private var musicManager = WatchMusicConnectivityManager.shared
     @State private var volume: Double = 0.5  // 0.0 ~ 1.0
     @FocusState private var isVolumeFocused: Bool
+    
+    // 画面サイズに応じたスケール係数
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        // 40mm (162pt) を基準 (1.0)、45mm (184pt) で約1.14、Ultra (205pt) で約1.26
+        return screenWidth / 162.0
+    }
     
     var body: some View {
         VStack(spacing: 0) {
             // 上部の余白
             Spacer(minLength: 16)
             
-            // 上部: 曲情報エリア（少しコンパクトに）
+            // 曲情報表示エリア（アートワーク付き）
             VStack(spacing: 4) {
-                // アルバムアート風のアイコン（少し小さく）
+                // アルバムアート風のアイコン
                 ZStack {
                     // グラデーション背景
                     LinearGradient(
@@ -30,67 +38,74 @@ struct MusicControlView: View {
                         endPoint: .bottomTrailing
                     )
                     
-                    Image(systemName: isPlaying ? "music.note" : "music.note.list")
-                        .font(.system(size: 40, weight: .medium))
+                    Image(systemName: musicManager.isPlaying ? "music.note" : "music.note.list")
+                        .font(.system(size: 40 * sizeScale, weight: .medium))
                         .foregroundStyle(.white)
-                        .symbolEffect(.pulse, isActive: isPlaying)
+                        .symbolEffect(.pulse, isActive: musicManager.isPlaying)
                 }
-                .frame(width: 65, height: 65)
+                .frame(width: 65 * sizeScale, height: 65 * sizeScale)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .shadow(color: .pink.opacity(0.3), radius: 8, x: 0, y: 4)
                 
-                // 曲名（見やすく）
-                Text(isPlaying ? "Now Playing" : "再生していません")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                
-                // アーティスト名・ステータス
-                Text(isPlaying ? "Apple Music" : "音楽を再生してください")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                // 曲情報
+                if let title = musicManager.currentTrackTitle {
+                    Text(title)
+                        .font(.system(size: 14 * sizeScale, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    
+                    if let artist = musicManager.currentArtist {
+                        Text(artist)
+                            .font(.system(size: 12 * sizeScale))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                } else {
+                    Text("再生していません")
+                        .font(.system(size: 13 * sizeScale))
+                        .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity)
             
             Spacer(minLength: 6)
             
-            // 中央: 再生コントロール
-            HStack(spacing: 32) {
-                // 前の曲ボタン
+            // 再生コントロールボタン
+            HStack(spacing: 32 * sizeScale) {
+                // 前の曲へ
                 Button {
-                    print("⏮️ Previous track")
+                    musicManager.skipToPrevious()
                 } label: {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 18 * sizeScale))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
                 
-                // 再生/一時停止ボタン（中央）
+                // 再生/一時停止
                 Button {
-                    if isPlaying {
-                        print("⏸️ Pause")
-                        isPlaying = false
-                    } else {
-                        print("▶️ Play - Opening Music app...")
-                        openMusicApp()
-                    }
+                    musicManager.togglePlayPause()
                 } label: {
-                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.pink)
-                        .symbolEffect(.bounce, value: isPlaying)
+                    ZStack {
+                        Circle()
+                            .fill(Color.pink)
+                            .frame(width: 44 * sizeScale, height: 44 * sizeScale)
+                        
+                        Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 18 * sizeScale))
+                            .foregroundStyle(.white)
+                            .symbolEffect(.bounce, value: musicManager.isPlaying)
+                    }
                 }
                 .buttonStyle(.plain)
                 
-                // 次の曲ボタン
+                // 次の曲へ
                 Button {
-                    print("⏭️ Next track")
+                    musicManager.skipToNext()
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 18 * sizeScale))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -98,7 +113,7 @@ struct MusicControlView: View {
             
             Spacer(minLength: 6)
             
-            // 下部: Digital Crown対応の音量スライダー
+            // 音量コントロール（Digital Crown対応）
             VStack(spacing: 4) {
                 HStack {
                     // 左: 音量ダウンボタン（-5%）
@@ -106,7 +121,7 @@ struct MusicControlView: View {
                         decreaseVolume()
                     } label: {
                         Image(systemName: volume == 0 ? "speaker.slash.fill" : "speaker.fill")
-                            .font(.system(size: 14))
+                            .font(.system(size: 14 * sizeScale))
                             .foregroundStyle(.pink)
                     }
                     .buttonStyle(.plain)
@@ -115,7 +130,7 @@ struct MusicControlView: View {
                     
                     // 音量パーセンテージ表示
                     Text("\(Int(volume * 100))%")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 15 * sizeScale, weight: .medium))
                         .foregroundStyle(.white)
                         .monospacedDigit()
                     
@@ -126,24 +141,27 @@ struct MusicControlView: View {
                         increaseVolume()
                     } label: {
                         Image(systemName: "speaker.wave.3.fill")
-                            .font(.system(size: 14))
+                            .font(.system(size: 14 * sizeScale))
                             .foregroundStyle(.pink)
                     }
                     .buttonStyle(.plain)
                 }
                 
                 // Digital Crown対応の音量バー
-                VolumeSliderView(volume: $volume, isFocused: $isVolumeFocused)
+                VolumeSliderView(volume: $volume, isFocused: $isVolumeFocused, musicManager: musicManager)
                     .frame(height: 6)
             }
             .padding(.horizontal, 10)
             
-            // 下部の余白（音量バーの下）
+            // 下部の余白
             Spacer(minLength: 35)
         }
         .padding(.horizontal, 8)
         .onAppear {
-            // 現在のシステム音量を取得
+            // 画面表示時に音楽情報を更新
+            musicManager.requestNowPlayingInfo()
+            
+            // システム音量を取得
             updateVolumeFromSystem()
             
             // 自動的に音量コントロールにフォーカス
@@ -164,31 +182,13 @@ struct MusicControlView: View {
         }
     }
     
-    // Apple Watch自体のシステム音量を設定
-    private func setWatchVolume(_ volume: Double) {
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setActive(true)
-            
-            // AVAudioSessionで音量設定を試みる
-            // 注意: watchOSでは直接的な音量設定が制限されている場合があります
-            print("🔊 Attempting to set Watch volume to: \(Int(volume * 100))%")
-            
-            // MPVolumeViewを使った代替手段（watchOSでは利用できない可能性あり）
-            // このため、UIのバーだけが変わり、実際の音量は変わらない可能性があります
-            
-        } catch {
-            print("❌ Failed to set Watch volume: \(error.localizedDescription)")
-        }
-    }
-    
     // 音量を5%下げる
     private func decreaseVolume() {
         let newVolume = max(0.0, volume - 0.05)
         volume = newVolume
         
-        // Apple Watch自体の音量を設定
-        setWatchVolume(newVolume)
+        // iPhoneの音量を設定
+        musicManager.setVolume(newVolume)
         
         // ハプティックフィードバック
         WKInterfaceDevice.current().play(.click)
@@ -206,8 +206,8 @@ struct MusicControlView: View {
         let newVolume = min(1.0, volume + 0.05)
         volume = newVolume
         
-        // Apple Watch自体の音量を設定
-        setWatchVolume(newVolume)
+        // iPhoneの音量を設定
+        musicManager.setVolume(newVolume)
         
         // ハプティックフィードバック
         WKInterfaceDevice.current().play(.click)
@@ -219,36 +219,13 @@ struct MusicControlView: View {
         
         print("🔊 Volume increased to: \(Int(newVolume * 100))%")
     }
-    
-    // ミュージックアプリを起動
-    private func openMusicApp() {
-        print("🎵 Opening Music app...")
-        
-        // 複数の音楽アプリURLスキームを試す
-        let musicURLs = [
-            "music://",           // Apple Music
-            "spotify://",         // Spotify
-            "amazonmusic://",     // Amazon Music
-            "youtube://"          // YouTube Music
-        ]
-        
-        // 順番に試す
-        for urlString in musicURLs {
-            if let url = URL(string: urlString) {
-                WKExtension.shared().openSystemURL(url)
-                print("🎵 Tried to open: \(urlString)")
-                break
-            }
-        }
-        
-        print("💡 ワークアウトはバックグラウンドで継続します")
-    }
 }
 
 // Digital Crown対応の音量スライダー
 struct VolumeSliderView: View {
     @Binding var volume: Double
     @FocusState.Binding var isFocused: Bool
+    @ObservedObject var musicManager: WatchMusicConnectivityManager
     
     var body: some View {
         GeometryReader { geometry in
@@ -260,18 +237,18 @@ struct VolumeSliderView: View {
                 
                 // 音量レベル（緑色）
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.green)  // 緑色
+                    .fill(Color.green)
                     .frame(width: geometry.size.width * volume, height: 6)
                     .animation(.easeInOut(duration: 0.1), value: volume)
                 
                 // フォーカスインジケーター（Digital Crownで操作中）
                 if isFocused {
                     RoundedRectangle(cornerRadius: 3)
-                        .strokeBorder(Color.green, lineWidth: 1.5)  // 緑色
+                        .strokeBorder(Color.green, lineWidth: 1.5)
                         .frame(height: 6)
                 }
             }
-            .contentShape(Rectangle())  // タップ可能領域を拡大
+            .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -295,6 +272,9 @@ struct VolumeSliderView: View {
                         let newVolume = max(0.0, min(1.0, value.location.x / geometry.size.width))
                         volume = newVolume
                         
+                        // iPhoneに音量を送信
+                        musicManager.setVolume(newVolume)
+                        
                         print("🔊 Volume set to: \(Int(newVolume * 100))%")
                         
                         // 0%と100%の時は特別な振動
@@ -310,24 +290,27 @@ struct VolumeSliderView: View {
             $volume,
             from: 0.0,
             through: 1.0,
-            by: 0.005,  // 0.5%ずつ調整（細かく調整可能）
-            sensitivity: .low,  // 低感度で急激な変化を防ぐ
+            by: 0.005,  // 0.5%ずつ調整
+            sensitivity: .low,
             isContinuous: false,
-            isHapticFeedbackEnabled: false  // 細かい変化なのでハプティックOFF
+            isHapticFeedbackEnabled: false
         )
         .onChange(of: volume) { oldValue, newValue in
             // 音量変更時のログ
             print("🔊 Volume changed: \(Int(newValue * 100))%")
             
             // ハプティックフィードバック（5%ごと）
-            let oldPercent = Int(oldValue * 20)  // 5%単位に丸める
+            let oldPercent = Int(oldValue * 20)
             let newPercent = Int(newValue * 20)
             if oldPercent != newPercent {
                 WKInterfaceDevice.current().play(.click)
+                
+                // iPhoneに音量を送信
+                musicManager.setVolume(newValue)
             }
             
             // 0%と100%の時は特別な振動
-            if newValue == 0.0 || newValue == 1.0 {
+            if (oldValue != 0.0 && newValue == 0.0) || (oldValue != 1.0 && newValue == 1.0) {
                 WKInterfaceDevice.current().play(.notification)
             }
         }
@@ -337,3 +320,4 @@ struct VolumeSliderView: View {
 #Preview {
     MusicControlView()
 }
+#endif // os(watchOS)
