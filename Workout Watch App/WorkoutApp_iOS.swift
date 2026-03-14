@@ -158,6 +158,12 @@ struct PhoneWorkoutTypeSelectionView: View {
     }
 }
 
+enum MetricCardType: String, Identifiable, CaseIterable {
+    case distance, calories, heartRate, pace, steps, marathon
+    
+    var id: String { rawValue }
+}
+
 struct PhoneWorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @State private var selectedTab = 1
@@ -166,6 +172,10 @@ struct PhoneWorkoutView: View {
     @State private var shouldScrollToTop = false
     @State private var cachedBestLapText: String? = nil
     @State private var lastLapCount: Int = 0
+    @State private var isEditMode = false
+    @State private var cardOrder: [MetricCardType] = [.distance, .calories, .heartRate, .pace, .steps, .marathon]
+    @State private var draggingCard: MetricCardType?
+    @State private var longPressTriggered: MetricCardType? = nil
     
     var body: some View {
         VStack(spacing: 0) {
@@ -204,6 +214,7 @@ struct PhoneWorkoutView: View {
                 startBlinking()
             }
             updateBestLapTextIfNeeded()
+            loadCardOrder()
         }
         .onDisappear {
             stopBlinking()
@@ -243,7 +254,7 @@ struct PhoneWorkoutView: View {
                     tabButton(
                         index: 2,
                         icon: "music.note",
-                        label: "音楽",
+                        label: "ミュージック",
                         isSelected: selectedTab == 2
                     )
                 }
@@ -269,7 +280,7 @@ struct PhoneWorkoutView: View {
                     .frame(height: 28)
                 
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(isSelected ? .white : .secondary)
             }
             .frame(maxWidth: .infinity)
@@ -295,93 +306,108 @@ struct PhoneWorkoutView: View {
     
     private var mainWorkoutView: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 6) {
-                        Text(workoutManager.workoutName)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .padding(.top, 6)
-                        
-                        VStack(spacing: 1) {
-                            Text("経過時間")
-                                .font(.system(size: 21))
-                                .foregroundStyle(.secondary)
-                            Text(workoutManager.elapsedTimeString)
-                                .font(.system(size: 60, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                        }
-                        .padding(.vertical, 4)
-                        
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            MetricCard(
-                                title: "距離",
-                                value: String(format: "%.2f", max(0, workoutManager.distance / 1000.0)),
-                                unit: "km",
-                                icon: "figure.walk",
-                                color: .blue
-                            )
-                            .onChange(of: workoutManager.distance) { oldValue, newValue in
-                                print("📱 iOS UI - Distance changed: \(String(format: "%.2f", oldValue))m -> \(String(format: "%.2f", newValue))m (displayed: \(String(format: "%.3f", newValue/1000.0))km)")
+            ZStack {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            Text(workoutManager.workoutName)
+                                .font(.system(size: 32, weight: .bold))
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 6)
+                            
+                            VStack(spacing: 1) {
+                                Text("経過時間")
+                                    .font(.system(size: 21))
+                                    .foregroundStyle(.secondary)
+                                Text(workoutManager.elapsedTimeString)
+                                    .font(.system(size: 60, weight: .bold, design: .rounded))
+                                    .monospacedDigit()
                             }
+                            .padding(.vertical, 4)
                             
-                            MetricCard(
-                                title: "カロリー",
-                                value: String(format: "%.0f", max(0, workoutManager.activeCalories)),
-                                unit: "kcal",
-                                icon: "flame.fill",
-                                color: .orange
-                            )
-                            
-                            MetricCard(
-                                title: "平均心拍数",
-                                value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
-                                unit: "bpm",
-                                icon: "heart.fill",
-                                color: .red
-                            )
-                            
-                            MetricCardWithRecord(
-                                title: "ペース",
-                                value: workoutManager.currentPaceString,
-                                unit: "/km",
-                                icon: "timer",
-                                color: .green,
-                                recordText: cachedBestLapText
-                            )
-                            .id("pace-card-\(workoutManager.lapTimes.count)")
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cachedBestLapText)
-                            
-                            MetricCard(
-                                title: "歩数",
-                                value: String(format: "%.0f", max(0, workoutManager.stepCount)),
-                                unit: "歩",
-                                icon: "figure.walk.motion",
-                                color: .purple
-                            )
-                            
-                            MarathonTimeCard(
-                                title: "フルマラソン予想",
-                                remainingTime: calculateMarathonRemainingTime(),
-                                icon: "flag.checkered",
-                                color: .cyan
-                            )
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                ForEach(cardOrder) { cardType in
+                                    DraggableCardView(
+                                        cardType: cardType,
+                                        isEditMode: $isEditMode,
+                                        draggingCard: $draggingCard,
+                                        cardOrder: $cardOrder,
+                                        onEnterEditMode: {
+                                            if !isEditMode {
+                                                print("👆 長押し検出: \(cardType.rawValue)")
+                                                enterEditMode()
+                                                // 編集モード後にドラッグ開始
+                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                    self.draggingCard = cardType
+                                                }
+                                            }
+                                        },
+                                        cardContent: {
+                                            cardView(for: cardType)
+                                        }
+                                    )
+                                    .id(cardType)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 0)
+                            .padding(.bottom, 12)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 12)
                     }
+                    .blur(radius: isEditMode ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.2), value: isEditMode)
+                    
+                    // ボタンを下部に固定
+                    controlButtons()
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+                        .padding(.bottom, 20)
+                        .background(Color(UIColor.systemBackground))
                 }
                 
-                // ボタンを下部に固定
-                controlButtons()
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
-                    .background(Color(UIColor.systemBackground))
+                // 編集モード時のヘッダー（上にオーバーレイ）
+                if isEditMode {
+                    VStack {
+                        editModeHeader
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        Spacer()
+                    }
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+    
+    // 編集モードのヘッダー
+    private var editModeHeader: some View {
+        HStack {
+            Text("カードを並び替え")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            Spacer()
+            
+            Button {
+                exitEditMode()
+            } label: {
+                Text("完了")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
     }
     
     private var lapTimesView: some View {
@@ -397,10 +423,11 @@ struct PhoneWorkoutView: View {
                         ForEach(Array(workoutManager.lapTimes.enumerated()), id: \.offset) { index, time in
                             HStack {
                                 Text("\(index + 1)km")
-                                    .font(.headline)
+                                    .font(.title)
+                                    .fontWeight(.bold)
                                 Spacer()
                                 Text(formatLapTime(time))
-                                    .font(.title3)
+                                    .font(.system(size: 36))
                                     .fontWeight(.semibold)
                                     .monospacedDigit()
                                     .foregroundStyle(lapColor(for: time, at: index))
@@ -580,6 +607,125 @@ struct PhoneWorkoutView: View {
         
         return max(0, remainingTime)
     }
+    
+    @ViewBuilder
+    private func cardView(for cardType: MetricCardType) -> some View {
+        switch cardType {
+        case .distance:
+            MetricCard(
+                title: "距離",
+                value: String(format: "%.2f", max(0, workoutManager.distance / 1000.0)),
+                unit: "km",
+                icon: "figure.walk",
+                color: .blue
+            )
+            .onChange(of: workoutManager.distance) { oldValue, newValue in
+                print("📱 iOS UI - Distance changed: \(String(format: "%.2f", oldValue))m -> \(String(format: "%.2f", newValue))m (displayed: \(String(format: "%.3f", newValue/1000.0))km)")
+            }
+            
+        case .calories:
+            MetricCard(
+                title: "カロリー",
+                value: String(format: "%.0f", max(0, workoutManager.activeCalories)),
+                unit: "kcal",
+                icon: "flame.fill",
+                color: .orange
+            )
+            
+        case .heartRate:
+            MetricCard(
+                title: "平均心拍数",
+                value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
+                unit: "bpm",
+                icon: "heart.fill",
+                color: .red
+            )
+            
+        case .pace:
+            MetricCardWithRecord(
+                title: "ペース",
+                value: workoutManager.currentPaceString,
+                unit: "/km",
+                icon: "timer",
+                color: .green,
+                recordText: cachedBestLapText
+            )
+            .id("pace-card-\(workoutManager.lapTimes.count)")
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: cachedBestLapText)
+            
+        case .steps:
+            MetricCard(
+                title: "歩数",
+                value: String(format: "%.0f", max(0, workoutManager.stepCount)),
+                unit: "歩",
+                icon: "figure.walk.motion",
+                color: .purple
+            )
+            
+        case .marathon:
+            MarathonTimeCard(
+                title: "フルマラソン予想",
+                remainingTime: calculateMarathonRemainingTime(),
+                icon: "flag.checkered",
+                color: .cyan
+            )
+        }
+    }
+    
+    private func enterEditMode() {
+        guard !isEditMode else { return }
+        
+        print("🎯 編集モード開始")
+        
+        // バイブレーション（より強い）
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.prepare() // 事前準備で遅延を減らす
+        impactFeedback.impactOccurred()
+        
+        // 確実にメインスレッドで実行
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                self.isEditMode = true
+            }
+        }
+    }
+    
+    private func exitEditMode() {
+        print("🎯 編集モード終了")
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            isEditMode = false
+        }
+        draggingCard = nil
+        
+        // 順番を保存
+        saveCardOrder()
+    }
+    
+    private func saveCardOrder() {
+        let orderStrings = cardOrder.map { $0.rawValue }
+        UserDefaults.standard.set(orderStrings, forKey: "cardOrder")
+        print("💾 カード順序を保存: \(orderStrings)")
+    }
+    
+    private func loadCardOrder() {
+        guard let orderStrings = UserDefaults.standard.array(forKey: "cardOrder") as? [String] else {
+            print("📂 保存されたカード順序が見つかりません。デフォルト順序を使用します。")
+            return
+        }
+        
+        let loadedOrder = orderStrings.compactMap { MetricCardType(rawValue: $0) }
+        
+        // すべてのカードタイプが含まれている場合のみ適用
+        if loadedOrder.count == MetricCardType.allCases.count {
+            cardOrder = loadedOrder
+            print("✅ カード順序を読み込み: \(orderStrings)")
+        } else {
+            print("⚠️ 保存されたカード順序が不完全です。デフォルト順序を使用します。")
+            print("   保存されていた順序: \(orderStrings)")
+            print("   期待されるカード数: \(MetricCardType.allCases.count), 実際: \(loadedOrder.count)")
+        }
+    }
 }
 
 struct MetricCard: View {
@@ -669,15 +815,15 @@ struct MetricCardWithRecord: View {
             VStack(spacing: 0) {
                 if let recordText = recordText {
                     Text("新記録 \(recordText)")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .foregroundStyle(.red)
                         .monospacedDigit()
                         .lineLimit(1)
-                        .minimumScaleFactor(0.5)
+                        .minimumScaleFactor(0.6)
                 } else {
                     // 空のスペースを確保して高さを固定
                     Text(" ")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 19, weight: .bold))
                         .lineLimit(1)
                 }
             }
@@ -830,8 +976,14 @@ struct PhoneMusicControlView: View {
                     .padding(.horizontal)
                 Spacer()
             }
-            .navigationTitle("音楽")
+            .navigationTitle("ミュージック")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("ミュージック")
+                        .font(.headline)
+                }
+            }
             .onAppear {
                 volume = musicController.volume
                 musicController.startMonitoring()
@@ -880,8 +1032,8 @@ struct PhoneMusicControlView: View {
         VStack(spacing: 8) {
             if let title = musicController.currentTrackTitle {
                 Text(title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.title)
+                    .fontWeight(.bold)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal)
@@ -1083,3 +1235,190 @@ extension MPVolumeView {
         }
     }
 }
+
+// 条件付きでViewモディファイアを適用するヘルパー
+extension View {
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
+    }
+}
+// カードのブルブル揺れアニメーション（iPhoneホーム画面スタイル）
+struct WiggleModifier: ViewModifier {
+    let isWiggling: Bool
+    @State private var isAnimating = false
+    
+    // 各カードごとに異なるランダムな揺れの角度を生成
+    private let randomAngle = Double.random(in: -2.0...2.0)
+    
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(isWiggling && isAnimating ? randomAngle : isWiggling && !isAnimating ? -randomAngle : 0))
+            .animation(
+                isWiggling ?
+                    Animation.easeInOut(duration: 0.12)
+                        .repeatForever(autoreverses: true) : 
+                    .spring(response: 0.3, dampingFraction: 0.6),
+                value: isWiggling
+            )
+            .animation(
+                Animation.easeInOut(duration: 0.12)
+                    .repeatForever(autoreverses: true),
+                value: isAnimating
+            )
+            .onAppear {
+                if isWiggling {
+                    isAnimating = true
+                }
+            }
+            .onChange(of: isWiggling) { oldValue, newValue in
+                if newValue {
+                    // 揺れ開始
+                    isAnimating = true
+                    // わずかな遅延を入れてアニメーションを確実に開始
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                        withAnimation(
+                            Animation.easeInOut(duration: 0.12)
+                                .repeatForever(autoreverses: true)
+                        ) {
+                            isAnimating.toggle()
+                        }
+                    }
+                } else {
+                    // 揺れ停止
+                    isAnimating = false
+                }
+            }
+    }
+}
+
+// ドラッグ可能なカードビュー（長押しでそのままドラッグ開始）
+struct DraggableCardView<Content: View>: View {
+    let cardType: MetricCardType
+    @Binding var isEditMode: Bool
+    @Binding var draggingCard: MetricCardType?
+    @Binding var cardOrder: [MetricCardType]
+    let onEnterEditMode: () -> Void
+    @ViewBuilder let cardContent: () -> Content
+    
+    var body: some View {
+        cardContent()
+            .modifier(WiggleModifier(isWiggling: isEditMode))
+            .scaleEffect(draggingCard == cardType ? 1.05 : 1.0)
+            .opacity(draggingCard == cardType ? 0.7 : 1.0)
+            .zIndex(draggingCard == cardType ? 1 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: draggingCard)
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: cardOrder)
+            // 編集モードでない時は長押しで編集モードに入る
+            .if(!isEditMode) { view in
+                view.onLongPressGesture(minimumDuration: 0.3) {
+                    print("👆 長押し完了（編集モード開始）: \(cardType.rawValue)")
+                    onEnterEditMode()
+                }
+            }
+            // 常にドラッグ可能（編集モード時のみ実際に動作）
+            .onDrag {
+                guard isEditMode else {
+                    print("⚠️ 編集モードではないためドラッグ不可")
+                    return NSItemProvider()
+                }
+                
+                print("🎯 onDrag呼び出し: \(cardType.rawValue)")
+                let feedback = UIImpactFeedbackGenerator(style: .light)
+                feedback.impactOccurred()
+                draggingCard = cardType
+                return NSItemProvider(object: cardType.rawValue as NSString)
+            }
+            .onDrop(of: [.text], delegate: ImprovedCardDropDelegate(
+                currentCard: cardType,
+                cardOrder: $cardOrder,
+                draggingCard: $draggingCard,
+                isEditMode: isEditMode
+            ))
+    }
+}
+
+// カードの並び替えデリゲート（iPhoneホーム画面スタイル・改善版）
+struct ImprovedCardDropDelegate: DropDelegate {
+    let currentCard: MetricCardType
+    @Binding var cardOrder: [MetricCardType]
+    @Binding var draggingCard: MetricCardType?
+    let isEditMode: Bool
+    
+    func dropEntered(info: DropInfo) {
+        guard isEditMode else {
+            print("❌ 編集モードではありません")
+            return
+        }
+        guard let draggingCard = draggingCard else {
+            print("❌ ドラッグ中のカードがありません")
+            return
+        }
+        
+        // 同じカードの場合は何もしない
+        if draggingCard == currentCard {
+            return
+        }
+        
+        // 現在の位置を取得
+        guard let fromIndex = cardOrder.firstIndex(of: draggingCard),
+              let toIndex = cardOrder.firstIndex(of: currentCard) else {
+            print("❌ インデックスが見つかりません")
+            return
+        }
+        
+        // デバッグ出力
+        print("🔄 カード移動: \(draggingCard.rawValue) [\(fromIndex)] → \(currentCard.rawValue) [\(toIndex)]")
+        print("   移動前の順番: \(cardOrder.map { $0.rawValue })")
+        
+        // ハプティックフィードバック（移動時）
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.impactOccurred()
+        
+        // iPhoneのホーム画面のようにスムーズに入れ替え
+        var newOrder = cardOrder
+        newOrder.remove(at: fromIndex)
+        newOrder.insert(draggingCard, at: toIndex)
+        
+        print("   移動後の順番: \(newOrder.map { $0.rawValue })")
+        
+        // アニメーション付きで更新
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            cardOrder = newOrder
+        }
+    }
+    
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard isEditMode else {
+            return DropProposal(operation: .forbidden)
+        }
+        return DropProposal(operation: .move)
+    }
+    
+    func performDrop(info: DropInfo) -> Bool {
+        guard isEditMode else { return false }
+        print("✅ ドロップ完了 - draggingCardをnilに")
+        
+        // 成功のハプティックフィードバック
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.success)
+        
+        // ドラッグ終了時にdraggingCardをクリア
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                draggingCard = nil
+            }
+        }
+        
+        return true
+    }
+    
+    func dropExited(info: DropInfo) {
+        print("👋 ドロップエリアを出ました: \(currentCard.rawValue)")
+    }
+}
+
