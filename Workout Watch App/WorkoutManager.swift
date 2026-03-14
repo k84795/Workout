@@ -611,6 +611,9 @@ class WorkoutManager: NSObject, ObservableObject {
             if isPaused {
                 print("⚠️ UI was out of sync, correcting isPaused to false")
                 isPaused = false
+                
+                // 🔥 一時停止中に蓄積された内部値をUI表示に反映
+                syncUIWithInternalValues()
             }
             return
         }
@@ -625,8 +628,11 @@ class WorkoutManager: NSObject, ObservableObject {
             // UIを先に更新（レスポンシブに）
             isPaused = false
             
+            // 🔥 一時停止中に蓄積された内部値をUI表示に反映
+            syncUIWithInternalValues()
+            
             session.resume()
-            print("🟢 Resume requested, isPaused set to false")
+            print("🟢 Resume requested, isPaused set to false, UI synced with internal values")
             
             // セッションの状態変化を非同期で確認
             Task { @MainActor in
@@ -642,6 +648,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 if session.state == .running && isPaused {
                     print("⚠️ Session resumed but isPaused still true, correcting")
                     isPaused = false
+                    syncUIWithInternalValues()
                 } else if session.state != .running && !isPaused {
                     print("⚠️ Session did not resume properly (state: \(session.state.rawValue)), correcting")
                     isPaused = true
@@ -664,8 +671,12 @@ class WorkoutManager: NSObject, ObservableObject {
                 
                 isProcessingPauseResume = true
                 isPaused = false
+                
+                // 🔥 一時停止中に蓄積された内部値をUI表示に反映
+                syncUIWithInternalValues()
+                
                 session.resume()
-                print("🟢 Resume attempted from unexpected state")
+                print("🟢 Resume attempted from unexpected state, UI synced")
                 
                 // 処理完了フラグを一定時間後にリセット
                 Task { @MainActor in
@@ -675,6 +686,31 @@ class WorkoutManager: NSObject, ObservableObject {
                 }
             }
         }
+    }
+    
+    // 🔥 一時停止中に蓄積された内部値をUI表示に同期
+    private func syncUIWithInternalValues() {
+        print("🔄 Syncing UI with internal values accumulated during pause...")
+        
+        let oldDistance = distance
+        let oldCalories = activeCalories
+        let oldSteps = stepCount
+        
+        // 最大値（内部記録）をUI表示に反映
+        distance = maxDistance
+        activeCalories = maxCalories
+        stepCount = maxStepCount
+        
+        // 心拍数の平均を再計算してUI反映
+        if !heartRateHistory.isEmpty {
+            averageHeartRate = heartRateHistory.reduce(0, +) / Double(heartRateHistory.count)
+        }
+        
+        print("🔄 ✅ UI synced:")
+        print("  Distance: \(String(format: "%.2f", oldDistance))m → \(String(format: "%.2f", distance))m")
+        print("  Calories: \(String(format: "%.1f", oldCalories))kcal → \(String(format: "%.1f", activeCalories))kcal")
+        print("  Steps: \(Int(oldSteps)) → \(Int(stepCount)) steps")
+        print("  Heart Rate: \(Int(averageHeartRate)) bpm")
     }
     
     nonisolated func endWorkout() async {
@@ -903,8 +939,7 @@ class WorkoutManager: NSObject, ObservableObject {
             guard let self = self else { return }
             
             Task { @MainActor in
-                // 一時停止中は更新しない
-                guard !self.isPaused else { return }
+                // 🔥 重要: 一時停止中でもラップ記録のため、距離は内部的に増加させ続ける
                 
                 // 🔧 実機に近いランダムな揺らぎを追加
                 let baseSpeed = 1.4  // 基本速度: 5km/h
@@ -935,11 +970,43 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.simulatorDistance += noisySpeed
                 }
                 
-                // 🔧 実機と同じupdateDistanceメソッドを使用（スムージング適用）
-                self.updateDistance(self.simulatorDistance)
+                // 🔥 一時停止中でもラップ記録のため、maxDistanceは常に更新
+                // ただし、UI表示（distance）は一時停止中は更新しない
+                if !self.isPaused {
+                    // 通常時: UI表示も更新
+                    self.updateDistance(self.simulatorDistance)
+                } else {
+                    // 一時停止中: 内部的な最大距離のみ更新（UI表示は凍結）
+                    // 履歴に追加
+                    if self.simulatorDistance > self.maxDistance {
+                        self.recentDistanceUpdates.append(self.simulatorDistance)
+                        if self.recentDistanceUpdates.count > self.maxDistanceHistory {
+                            self.recentDistanceUpdates.removeFirst()
+                        }
+                        
+                        // スムージング: 移動平均を使用
+                        let smoothedDistance = self.recentDistanceUpdates.reduce(0, +) / Double(self.recentDistanceUpdates.count)
+                        
+                        // 内部的な最大値を更新（ラップ記録用）
+                        self.maxDistance = max(self.maxDistance, smoothedDistance)
+                        print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", self.maxDistance))m (UI frozen at \(String(format: "%.2f", self.distance))m)")
+                    }
+                }
                 
-                // 🔥 ラップ記録用に即座にペース更新（内部のmaxDistanceを使用）
+                // 🔥 ラップ記録用に即座にペース更新（一時停止中も継続）
                 self.updateCurrentPace(newDistance: self.maxDistance)
+                
+                // 一時停止中はUI表示用のメトリクスは更新しない
+                guard !self.isPaused else { 
+                    // 10秒ごとにログ出力（一時停止中）
+                    let secondsInt = Int(elapsedSeconds)
+                    if secondsInt % 10 == 0 && secondsInt > 0 {
+                        print("⏸️ PAUSED [\(secondsInt)s]: Internal=\(String(format: "%.2f", self.maxDistance))m, Display=\(String(format: "%.2f", self.distance))m (frozen)")
+                    }
+                    return 
+                }
+                
+                // 以下は一時停止中でない場合のみ実行（UI表示用のメトリクス更新）
                 
                 // 歩数を増加（1秒で約2歩、こちらも少し揺らぎを追加）
                 let stepVariation = Double.random(in: -0.3...0.3)
@@ -969,9 +1036,6 @@ class WorkoutManager: NSObject, ObservableObject {
                 }
                 
                 self.averageHeartRate = self.heartRateHistory.reduce(0, +) / Double(self.heartRateHistory.count)
-                
-                // ペースを更新（updateDistanceで更新済みのdistanceを使用）
-                self.updateCurrentPace(newDistance: self.distance)
                 
                 // 10秒ごとにログ出力（詳細なデバッグ情報）
                 let secondsInt = Int(elapsedSeconds)
@@ -1012,6 +1076,7 @@ class WorkoutManager: NSObject, ObservableObject {
                     return
                 }
                 
+                // 🔥 一時停止中でも心拍数の履歴は更新（内部記録）
                 heartRateHistory.append(heartRate)
                 
                 // 履歴が上限を超えたら古いものを削除
@@ -1020,45 +1085,93 @@ class WorkoutManager: NSObject, ObservableObject {
                 }
                 
                 // 平均心拍数を計算
-                averageHeartRate = heartRateHistory.reduce(0, +) / Double(heartRateHistory.count)
+                let calculatedAverage = heartRateHistory.reduce(0, +) / Double(heartRateHistory.count)
                 
-                print("💓 Heart rate: \(Int(heartRate)) bpm, average: \(Int(averageHeartRate)) bpm (samples: \(heartRateHistory.count))")
+                // 一時停止中でない場合のみUI表示を更新
+                if !isPaused {
+                    averageHeartRate = calculatedAverage
+                    print("💓 Heart rate: \(Int(heartRate)) bpm, average: \(Int(averageHeartRate)) bpm (samples: \(heartRateHistory.count))")
+                } else {
+                    print("⏸️ Paused - Internal heart rate updated: \(Int(heartRate)) bpm, average: \(Int(calculatedAverage)) bpm (UI frozen at \(Int(averageHeartRate)) bpm)")
+                }
             }
             
         case HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned):
             let energyUnit = HKUnit.kilocalorie()
             let newCalories = statistics.sumQuantity()?.doubleValue(for: energyUnit) ?? 0
             
-            // カロリーは単調増加のみ許可（減少を防ぐ）
+            // 🔥 一時停止中でも内部的な最大値は更新（UI表示は凍結）
             if newCalories > maxCalories {
                 maxCalories = newCalories
-                activeCalories = newCalories
-                print("🔥 Active calories: \(String(format: "%.1f", activeCalories)) kcal")
+                
+                // 一時停止中でない場合のみUI表示を更新
+                if !isPaused {
+                    activeCalories = newCalories
+                    print("🔥 Active calories: \(String(format: "%.1f", activeCalories)) kcal")
+                } else {
+                    print("⏸️ Paused - Internal calories updated: \(String(format: "%.1f", maxCalories)) kcal (UI frozen at \(String(format: "%.1f", activeCalories)) kcal)")
+                }
             } else if newCalories < maxCalories {
-                // 減少した場合は最大値を維持（UIには最大値を表示し続ける）
-                activeCalories = maxCalories
-                print("⚠️ Calories decreased from \(String(format: "%.1f", maxCalories)) to \(String(format: "%.1f", newCalories)), keeping max value")
+                // 減少した場合は無視（最大値を維持）
+                let decreaseAmount = maxCalories - newCalories
+                if decreaseAmount > 0.1 {
+                    print("⚠️ Calories decreased from \(String(format: "%.1f", maxCalories)) to \(String(format: "%.1f", newCalories)), keeping max value")
+                }
             } else {
-                // 同じ値の場合も明示的に設定（UIの更新を確実にする）
-                activeCalories = maxCalories
+                // 同じ値の場合、一時停止中でなければ明示的に設定
+                if !isPaused {
+                    activeCalories = maxCalories
+                }
             }
             
         case HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning):
             let meterUnit = HKUnit.meter()
             let newDistance = statistics.sumQuantity()?.doubleValue(for: meterUnit) ?? 0
             
-            // 専用メソッドで距離を更新（単調増加を保証）
-            updateDistance(newDistance)
+            // 🔥 一時停止中でもラップ記録のため、内部的な距離は更新し続ける
+            if !isPaused {
+                // 通常時: UI表示も更新
+                updateDistance(newDistance)
+            } else {
+                // 一時停止中: 内部的な最大距離のみ更新（UI表示は凍結）
+                if newDistance > maxDistance {
+                    // 履歴に追加
+                    recentDistanceUpdates.append(newDistance)
+                    if recentDistanceUpdates.count > maxDistanceHistory {
+                        recentDistanceUpdates.removeFirst()
+                    }
+                    
+                    // スムージング: 移動平均を使用
+                    let smoothedDistance = recentDistanceUpdates.reduce(0, +) / Double(recentDistanceUpdates.count)
+                    
+                    // 内部的な最大値を更新（ラップ記録用）
+                    maxDistance = max(maxDistance, smoothedDistance)
+                    print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", maxDistance))m (UI frozen at \(String(format: "%.2f", distance))m)")
+                }
+            }
             
-            // 🔥 ラップ記録用に即座にペース更新（内部のmaxDistanceを使用）
+            // 🔥 ラップ記録用に即座にペース更新（一時停止中も継続）
             updateCurrentPace(newDistance: maxDistance)
             
         case HKQuantityType.quantityType(forIdentifier: .stepCount):
             let stepUnit = HKUnit.count()
             let newStepCount = statistics.sumQuantity()?.doubleValue(for: stepUnit) ?? 0
             
-            // 専用メソッドで歩数を更新（単調増加を保証）
-            updateStepCount(newStepCount)
+            // 🔥 一時停止中でも内部的な最大値は更新（UI表示は凍結）
+            if newStepCount > maxStepCount {
+                maxStepCount = newStepCount
+                
+                // 一時停止中でない場合のみUI表示を更新
+                if !isPaused {
+                    stepCount = newStepCount
+                    print("🚶 Step count: \(Int(stepCount)) steps")
+                } else {
+                    print("⏸️ Paused - Internal steps updated: \(Int(maxStepCount)) steps (UI frozen at \(Int(stepCount)) steps)")
+                }
+            } else if newStepCount < maxStepCount {
+                // 減少した場合は無視
+                print("⚠️ Step count data decreased (\(Int(newStepCount)) < \(Int(maxStepCount))), ignoring")
+            }
             
         default:
             break
@@ -1093,9 +1206,12 @@ class WorkoutManager: NSObject, ObservableObject {
                 // 10mあたりの実際のペース（テスト用）
                 currentPace = timeElapsed
                 
+                // ⚠️ テスト用：ランダムなラップタイムを生成（30秒〜90秒の範囲）
+                let randomLapTime = Double.random(in: 30.0...90.0)
+                
                 // ラップタイムを記録（10mの所要時間）
-                lapTimes.append(timeElapsed)
-                print("🏃 Lap \(lapTimes.count): \(formatLapTime(timeElapsed)) (10m完走, ペース: \(currentPaceString))")
+                lapTimes.append(randomLapTime)
+                print("🏃 Lap \(lapTimes.count): \(formatLapTime(randomLapTime)) (10m完走, ペース: \(currentPaceString)) [実際:\(formatLapTime(timeElapsed)), ランダム:\(formatLapTime(randomLapTime))]")
                 print("🏃   Actual distance: \(String(format: "%.2f", actualDistance))m, Display distance: \(String(format: "%.2f", distance))m")
                 
                 // ラップ基準点を更新（実際の距離を使用）
@@ -1403,6 +1519,12 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 
             case .running:
                 print("🔄 Workout is now RUNNING")
+                
+                // 🔥 一時停止から再開した場合、UI表示を内部値に同期
+                if isPaused {
+                    syncUIWithInternalValues()
+                }
+                
                 isPaused = false
                 
                 // タイマーが停止している場合は再開

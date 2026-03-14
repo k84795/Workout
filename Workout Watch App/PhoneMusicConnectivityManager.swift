@@ -182,13 +182,13 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
     
     // 音量を設定（公開メソッド - iPhone単体モードでも使用可能）
     func setVolume(_ volume: Double) {
-        // MPMusicPlayerControllerには音量設定がないため、
-        // MPVolumeViewやAVAudioSessionを使用する必要がある
-        // ここではログのみ
-        print("🎵 Volume change requested: \(Int(volume * 100))%")
+        print("🔊 Volume change requested: \(Int(volume * 100))%")
         
-        // Note: システム音量を変更するには、MPVolumeViewのスライダーを
-        // プログラム的に操作する必要がありますが、Appleは推奨していません
+        // MPVolumeViewを使ってシステム音量を変更
+        DispatchQueue.main.async {
+            MPVolumeView.setSystemVolume(Float(volume))
+            print("🔊 System volume set to: \(Int(volume * 100))%")
+        }
     }
 }
 

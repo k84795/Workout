@@ -387,7 +387,14 @@ struct PhoneWorkoutView: View {
         let hours = Int(time / 3600)
         let minutes = Int(time.truncatingRemainder(dividingBy: 3600) / 60)
         let seconds = Int(time.truncatingRemainder(dividingBy: 60))
-        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        
+        // 1時間未満の場合は mm:ss 形式
+        if hours == 0 {
+            return String(format: "%02d:%02d", minutes, seconds)
+        } else {
+            // 1時間以上の場合は h:mm:ss 形式
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
     }
     
     private func startBlinking() {
@@ -429,7 +436,17 @@ struct PhoneWorkoutView: View {
         let hours = Int(fastest / 3600)
         let minutes = Int(fastest.truncatingRemainder(dividingBy: 3600) / 60)
         let seconds = Int(fastest.truncatingRemainder(dividingBy: 60))
-        return "\(kmNumber)km/\(String(format: "%d:%02d:%02d", hours, minutes, seconds))"
+        
+        // 1時間未満の場合は mm:ss 形式
+        let timeString: String
+        if hours == 0 {
+            timeString = String(format: "%02d:%02d", minutes, seconds)
+        } else {
+            // 1時間以上の場合は h:mm:ss 形式
+            timeString = String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        
+        return "\(kmNumber)km/\(timeString)"
     }
 }
 

@@ -15,46 +15,58 @@ struct MusicControlView: View {
     @FocusState private var isVolumeFocused: Bool
     
     var body: some View {
-        VStack(spacing: 4) {
-            // 上部: 曲情報エリア（コンパクト化）
-            VStack(spacing: 3) {
-                // アルバムアート風のアイコン（サイズ縮小）
-                Image(systemName: "music.note")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.pink)
-                    .frame(width: 50, height: 50)
-                    .background(Color.pink.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+        VStack(spacing: 0) {
+            // 上部の余白
+            Spacer(minLength: 16)
+            
+            // 上部: 曲情報エリア（少しコンパクトに）
+            VStack(spacing: 4) {
+                // アルバムアート風のアイコン（少し小さく）
+                ZStack {
+                    // グラデーション背景
+                    LinearGradient(
+                        colors: [.pink.opacity(0.6), .purple.opacity(0.4)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    
+                    Image(systemName: isPlaying ? "music.note" : "music.note.list")
+                        .font(.system(size: 40, weight: .medium))
+                        .foregroundStyle(.white)
+                        .symbolEffect(.pulse, isActive: isPlaying)
+                }
+                .frame(width: 65, height: 65)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: .pink.opacity(0.3), radius: 8, x: 0, y: 4)
                 
-                // 曲名（小さく）
-                Text("再生していません")
-                    .font(.subheadline)
+                // 曲名（見やすく）
+                Text(isPlaying ? "Now Playing" : "再生していません")
+                    .font(.headline)
+                    .fontWeight(.semibold)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 
-                // アーティスト名（小さく）
-                Text("音楽を再生してください")
-                    .font(.caption2)
+                // アーティスト名・ステータス
+                Text(isPlaying ? "Apple Music" : "音楽を再生してください")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 4)
             
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             
-            // 中央: 再生コントロール（コンパクト化）
-            HStack(spacing: 35) {
+            // 中央: 再生コントロール
+            HStack(spacing: 32) {
                 // 前の曲ボタン
                 Button {
                     print("⏮️ Previous track")
                 } label: {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 18))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(!isPlaying)
-                .opacity(isPlaying ? 1.0 : 0.4)
                 
                 // 再生/一時停止ボタン（中央）
                 Button {
@@ -66,9 +78,10 @@ struct MusicControlView: View {
                         openMusicApp()
                     }
                 } label: {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white)
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(.pink)
+                        .symbolEffect(.bounce, value: isPlaying)
                 }
                 .buttonStyle(.plain)
                 
@@ -77,27 +90,24 @@ struct MusicControlView: View {
                     print("⏭️ Next track")
                 } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 18))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .disabled(!isPlaying)
-                .opacity(isPlaying ? 1.0 : 0.4)
             }
-            .padding(.vertical, 8)
             
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
             
-            // 下部: Digital Crown対応の音量スライダー（コンパクト化）
-            VStack(spacing: 6) {
+            // 下部: Digital Crown対応の音量スライダー
+            VStack(spacing: 4) {
                 HStack {
                     // 左: 音量ダウンボタン（-5%）
                     Button {
                         decreaseVolume()
                     } label: {
                         Image(systemName: volume == 0 ? "speaker.slash.fill" : "speaker.fill")
-                            .font(.system(size: 16))  // 10 → 16に拡大
-                            .foregroundStyle(.pink)  // ピンク色に変更
+                            .font(.system(size: 14))
+                            .foregroundStyle(.pink)
                     }
                     .buttonStyle(.plain)
                     
@@ -105,8 +115,8 @@ struct MusicControlView: View {
                     
                     // 音量パーセンテージ表示
                     Text("\(Int(volume * 100))%")
-                        .font(.system(size: 16))  // 10 → 16に拡大
-                        .foregroundStyle(.white)  // より見やすく白色に
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white)
                         .monospacedDigit()
                     
                     Spacer()
@@ -116,8 +126,8 @@ struct MusicControlView: View {
                         increaseVolume()
                     } label: {
                         Image(systemName: "speaker.wave.3.fill")
-                            .font(.system(size: 16))  // 10 → 16に拡大
-                            .foregroundStyle(.pink)  // ピンク色に変更
+                            .font(.system(size: 14))
+                            .foregroundStyle(.pink)
                     }
                     .buttonStyle(.plain)
                 }
@@ -126,8 +136,10 @@ struct MusicControlView: View {
                 VolumeSliderView(volume: $volume, isFocused: $isVolumeFocused)
                     .frame(height: 6)
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 32)  // さらに2倍に拡大（16 → 32）
+            .padding(.horizontal, 10)
+            
+            // 下部の余白（音量バーの下）
+            Spacer(minLength: 35)
         }
         .padding(.horizontal, 8)
         .onAppear {
@@ -152,10 +164,31 @@ struct MusicControlView: View {
         }
     }
     
+    // Apple Watch自体のシステム音量を設定
+    private func setWatchVolume(_ volume: Double) {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setActive(true)
+            
+            // AVAudioSessionで音量設定を試みる
+            // 注意: watchOSでは直接的な音量設定が制限されている場合があります
+            print("🔊 Attempting to set Watch volume to: \(Int(volume * 100))%")
+            
+            // MPVolumeViewを使った代替手段（watchOSでは利用できない可能性あり）
+            // このため、UIのバーだけが変わり、実際の音量は変わらない可能性があります
+            
+        } catch {
+            print("❌ Failed to set Watch volume: \(error.localizedDescription)")
+        }
+    }
+    
     // 音量を5%下げる
     private func decreaseVolume() {
         let newVolume = max(0.0, volume - 0.05)
         volume = newVolume
+        
+        // Apple Watch自体の音量を設定
+        setWatchVolume(newVolume)
         
         // ハプティックフィードバック
         WKInterfaceDevice.current().play(.click)
@@ -172,6 +205,9 @@ struct MusicControlView: View {
     private func increaseVolume() {
         let newVolume = min(1.0, volume + 0.05)
         volume = newVolume
+        
+        // Apple Watch自体の音量を設定
+        setWatchVolume(newVolume)
         
         // ハプティックフィードバック
         WKInterfaceDevice.current().play(.click)
@@ -235,6 +271,38 @@ struct VolumeSliderView: View {
                         .frame(height: 6)
                 }
             }
+            .contentShape(Rectangle())  // タップ可能領域を拡大
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        // スワイプ/タップ位置に基づいて音量を設定
+                        let newVolume = max(0.0, min(1.0, value.location.x / geometry.size.width))
+                        
+                        // 前回の値と異なる場合のみ更新
+                        if abs(newVolume - volume) > 0.01 {
+                            volume = newVolume
+                            
+                            // ハプティックフィードバック（5%ごと）
+                            let percent = Int(newVolume * 20)
+                            let oldPercent = Int(volume * 20)
+                            if percent != oldPercent {
+                                WKInterfaceDevice.current().play(.click)
+                            }
+                        }
+                    }
+                    .onEnded { value in
+                        // 最終位置で音量を確定
+                        let newVolume = max(0.0, min(1.0, value.location.x / geometry.size.width))
+                        volume = newVolume
+                        
+                        print("🔊 Volume set to: \(Int(newVolume * 100))%")
+                        
+                        // 0%と100%の時は特別な振動
+                        if newVolume == 0.0 || newVolume == 1.0 {
+                            WKInterfaceDevice.current().play(.notification)
+                        }
+                    }
+            )
         }
         .focusable(true)
         .focused($isFocused)
@@ -242,16 +310,23 @@ struct VolumeSliderView: View {
             $volume,
             from: 0.0,
             through: 1.0,
-            by: 0.0001,  // 0.01%ずつ調整（非常に小さく、かなり回さないと変化しない）
-            sensitivity: .low,  // 低感度
+            by: 0.005,  // 0.5%ずつ調整（細かく調整可能）
+            sensitivity: .low,  // 低感度で急激な変化を防ぐ
             isContinuous: false,
-            isHapticFeedbackEnabled: false  // 細かすぎるのでハプティックOFF
+            isHapticFeedbackEnabled: false  // 細かい変化なのでハプティックOFF
         )
         .onChange(of: volume) { oldValue, newValue in
             // 音量変更時のログ
             print("🔊 Volume changed: \(Int(newValue * 100))%")
             
-            // ハプティックフィードバック（0%と100%の時のみ）
+            // ハプティックフィードバック（5%ごと）
+            let oldPercent = Int(oldValue * 20)  // 5%単位に丸める
+            let newPercent = Int(newValue * 20)
+            if oldPercent != newPercent {
+                WKInterfaceDevice.current().play(.click)
+            }
+            
+            // 0%と100%の時は特別な振動
             if newValue == 0.0 || newValue == 1.0 {
                 WKInterfaceDevice.current().play(.notification)
             }
