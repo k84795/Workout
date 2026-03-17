@@ -77,6 +77,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				PhoneMusicConnectivityManager.swift,
+				PhoneWorkoutConnectivityManager.swift,
 				WorkoutApp_iOS.swift,
 				WorkoutManager.swift,
 			);
@@ -570,6 +571,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "ワークアウト中に音楽を再生​・コントロールするために​、音楽ライブラリへのアクセスが必要です。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトのデータを記録するためにHealthKitを使用します";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ークアウトのデータをHealthKitに保存します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -608,6 +611,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "ワークアウト中に音楽を再生​・コントロールするために​、音楽ライブラリへのアクセスが必要です。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトのデータを記録するためにHealthKitを使用します";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ークアウトのデータをHealthKitに保存します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -854,7 +859,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Workout;
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -890,7 +895,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Workout;
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";

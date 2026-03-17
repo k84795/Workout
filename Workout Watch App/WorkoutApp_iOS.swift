@@ -12,20 +12,150 @@ import AVFoundation
 import WatchConnectivity
 import HealthKit
 
+// 🔥 アプリ終了時にワークアウトを確実に終了させるためのAppDelegate
+class WorkoutAppDelegate: NSObject, UIApplicationDelegate {
+    // WorkoutManagerの参照を保持（Appから設定される）
+    weak var workoutManager: WorkoutManager?
+    
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        print("🚀 App launched")
+        return true
+    }
+    
+    // 🔥 アプリ終了時に呼ばれる（スワイプで終了した時も含む）
+    func applicationWillTerminate(_ application: UIApplication) {
+        print("🔴 ========================================")
+        print("🔴 APPLICATION WILL TERMINATE")
+        print("🔴 ========================================")
+        
+        guard let workoutManager = workoutManager else {
+            print("⚠️ WorkoutManager reference is nil")
+            return
+        }
+        
+        if workoutManager.isWorkoutActive {
+            print("🔴 ⚠️ Active workout detected during app termination!")
+            print("🔴 Forcing workout to end to clean up Dynamic Island...")
+            
+            // 🔥 RunLoopを使って確実に処理を実行
+            let runLoop = RunLoop.current
+            var finished = false
+            
+            Task.detached { @MainActor in
+                await workoutManager.endWorkout()
+                print("🔴 ✅ Workout ended during app termination")
+                finished = true
+            }
+            
+            // 🔥 最大5秒間RunLoopを回す（より長い時間を確保）
+            let deadline = Date().addingTimeInterval(5.0)
+            while !finished && Date() < deadline {
+                runLoop.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
+            }
+            
+            if finished {
+                print("🔴 ✅ Workout termination completed successfully")
+                // 🔥 追加の待機（HealthKitのクリーンアップ）
+                Thread.sleep(forTimeInterval: 1.0)
+                print("🔴 ✅ Additional cleanup delay completed")
+            } else {
+                print("🔴 ⚠️ Workout termination did not complete in time")
+            }
+        } else {
+            print("ℹ️ No active workout during termination")
+        }
+        
+        print("🔴 ========================================")
+    }
+}
+
 @main
 struct WorkoutPhoneApp: App {
     @StateObject private var workoutManager = WorkoutManager()
+    @UIApplicationDelegateAdaptor(WorkoutAppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
+    
+    // 🔥 バックグラウンド移行の時刻を記録
+    @State private var backgroundEntryTime: Date? = nil
+    
+    // 🔥 Watch Connectivity Managerの参照を保持（解放されないように）
+    private let workoutConnectivityManager = PhoneWorkoutConnectivityManager.shared
+    
+    init() {
+        // AVAudioSessionを設定して、他のアプリの音楽と共存できるようにする
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            // .ambient を使用して、他の音楽アプリと完全に共存
+            // .mixWithOthers で同時再生を許可
+            // .duckOthers は使用しない（他の音楽の音量を下げない）
+            try audioSession.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+            print("🔊 AVAudioSession configured: .ambient with .mixWithOthers")
+        } catch {
+            print("⚠️ Failed to configure AVAudioSession: \(error.localizedDescription)")
+        }
+    }
     
     var body: some Scene {
         WindowGroup {
             PhoneContentView()
                 .environmentObject(workoutManager)
                 .onAppear {
+                    // 🔥 AppDelegateにWorkoutManagerの参照を渡す
+                    appDelegate.workoutManager = workoutManager
+                    
                     // 起動時にWatch Connectivity Managerを初期化
                     if WCSession.isSupported() {
+                        // 音楽用のConnectivity Manager
                         _ = PhoneMusicConnectivityManager.shared
+                        
+                        // ワークアウトデータ用のConnectivity Manager（参照を保持済み）
+                        workoutConnectivityManager.workoutManager = workoutManager
+                        print("⌚️ PhoneWorkoutConnectivityManager initialized and linked to WorkoutManager")
                     }
                 }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            handleScenePhaseChange(from: oldPhase, to: newPhase)
+        }
+    }
+    
+    // 🔥 Scene Phase変更の処理
+    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        print("🔄 ========================================")
+        print("🔄 Scene phase: \(oldPhase) → \(newPhase)")
+        print("🔄 Workout active: \(workoutManager.isWorkoutActive)")
+        print("🔄 ========================================")
+        
+        switch newPhase {
+        case .background:
+            // バックグラウンドに入った時刻を記録
+            backgroundEntryTime = Date()
+            print("📱 App entered BACKGROUND at \(backgroundEntryTime!)")
+            
+            // 🔥 バックグラウンドに入っても何もしない
+            // （applicationWillTerminate で処理する）
+            if workoutManager.isWorkoutActive {
+                print("ℹ️ Workout is active in background - will be handled by applicationWillTerminate if app is terminated")
+            }
+            
+        case .active:
+            print("📱 App became ACTIVE")
+            
+            // バックグラウンドからの復帰時間を確認
+            if let bgTime = backgroundEntryTime {
+                let timeInBackground = Date().timeIntervalSince(bgTime)
+                print("📱 Was in background for \(timeInBackground) seconds")
+                backgroundEntryTime = nil
+            }
+            
+        case .inactive:
+            print("📱 App became INACTIVE")
+            // inactiveは通知センターを開いたり、コントロールセンターを表示した時も発火するため
+            // ここでは何もしない
+            
+        @unknown default:
+            print("📱 Unknown scene phase: \(newPhase)")
         }
     }
 }
@@ -53,41 +183,47 @@ struct PhoneWorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     @State private var isStarting = false
     @State private var showError = false
+    @State private var hasRequestedPermission = false
     
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color)] = [
-        ("ウォーキング", .walking, "figure.walk", .green),
-        ("ジョギング", .running, "figure.run", .orange),
-        ("ランニング", .running, "figure.run.circle", .red)
+        ("ウォーキング", .walking, "walking", .green),
+        ("ジョギング", .running, "jogging", .blue),
+        ("ランニング", .running, "running", .red)
     ]
     
     var body: some View {
         NavigationStack {
             ZStack {
-                List {
+                VStack(spacing: 24) {
                     ForEach(workoutTypes, id: \.name) { workout in
                         Button {
                             startWorkout(type: workout.type, name: workout.name)
                         } label: {
-                            HStack(spacing: 16) {
-                                Image(systemName: workout.icon)
-                                    .font(.system(size: 32))
-                                    .foregroundStyle(workout.color)
-                                    .frame(width: 50)
+                            HStack(spacing: 32) {
+                                Image(workout.icon)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 50, height: 50)
                                 
                                 Text(workout.name)
-                                    .font(.title3)
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 30.75, weight: .semibold))
+                                    .foregroundColor(workout.color)
                                 
                                 Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 20)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
+                        .buttonStyle(.plain)
                         .disabled(isStarting)
                     }
+                    
+                    Spacer()
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
                 .opacity(isStarting ? 0.3 : 1.0)
                 .disabled(isStarting)
                 
@@ -127,6 +263,15 @@ struct PhoneWorkoutTypeSelectionView: View {
                     isStarting = false
                 }
             }
+            .onAppear {
+                // 初回のみ権限をリクエスト（アプリ起動時にダイアログ表示）
+                if !hasRequestedPermission {
+                    hasRequestedPermission = true
+                    Task {
+                        await workoutManager.requestAuthorization()
+                    }
+                }
+            }
         }
     }
     
@@ -136,23 +281,26 @@ struct PhoneWorkoutTypeSelectionView: View {
         
         isStarting = true
         
-        // タイムアウトタイマーを設定（10秒）
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(10))
+        // タイムアウトタイマーを設定（30秒 - 実機での権限ダイアログ＋セッション開始を考慮）
+        let timeoutTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(30))
             
             if isStarting {
-                print("⚠️ Workout start timeout - forcing UI update")
+                print("⚠️ Workout start timeout after 30 seconds")
                 isStarting = false
                 
                 // タイムアウト後もワークアウトがアクティブでない場合はエラー表示
                 if !workoutManager.isWorkoutActive {
-                    workoutManager.errorMessage = "ワークアウトの開始がタイムアウトしました。もう一度お試しください。"
+                    workoutManager.errorMessage = "ワークアウトの開始がタイムアウトしました。\nHealthKitの権限を確認してください。"
                 }
             }
         }
         
         Task { @MainActor in
             await workoutManager.startWorkout(activityType: type, workoutName: name)
+            
+            // ワークアウト開始処理が完了したらタイムアウトタスクをキャンセル
+            timeoutTask.cancel()
             isStarting = false
         }
     }
@@ -195,6 +343,12 @@ struct PhoneWorkoutView: View {
             
             // カスタムタブバー
             customTabBar
+        }
+        .sheet(isPresented: $showAddCardMenu) {
+            AddCardMenuView(
+                visibleCards: $visibleCards,
+                isPresented: $showAddCardMenu
+            )
         }
         .onChange(of: workoutManager.isPaused) { oldValue, newValue in
             if newValue {
@@ -252,11 +406,30 @@ struct PhoneWorkoutView: View {
                     )
                     
                     // 音楽タブ
-                    tabButton(
-                        index: 2,
-                        icon: "music.note",
-                        label: "ミュージック",
-                        isSelected: selectedTab == 2
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedTab = 2
+                        }
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: "music.note")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundStyle(selectedTab == 2 ? .white : .secondary)
+                                .frame(height: 28)
+                            
+                            Text("ミュージック")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(selectedTab == 2 ? .white : .secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 60)
+                        .contentShape(Rectangle())
+                    }
+                    .glassEffect(
+                        selectedTab == 2 ? 
+                            .regular.tint(.pink).interactive() : 
+                            .regular.interactive(),
+                        in: .rect(cornerRadius: 16)
                     )
                 }
                 .padding(.horizontal, 16)
@@ -315,7 +488,7 @@ struct PhoneWorkoutView: View {
                                 .font(.system(size: 32, weight: .bold))
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: .infinity)
-                                .padding(.top, 6)
+                                .padding(.top, 0)
                             
                             VStack(spacing: 1) {
                                 Text("経過時間")
@@ -325,9 +498,11 @@ struct PhoneWorkoutView: View {
                                     .font(.system(size: 60, weight: .bold, design: .rounded))
                                     .monospacedDigit()
                             }
-                            .padding(.vertical, 4)
+                            .padding(.top, 0)
+                            .padding(.bottom, 4)
                             
-                            // ＋ボタン（編集モード時のみ表示、カードが全て表示されていない場合のみ）
+                            // ＋ボタン（編集モード時のみ表示、全てのカードが表示されていない場合）
+                            // 右上に配置、少し小さめに
                             HStack {
                                 Spacer()
                                 
@@ -336,25 +511,18 @@ struct PhoneWorkoutView: View {
                                         showAddCardMenu = true
                                     } label: {
                                         Image(systemName: "plus.circle.fill")
-                                            .font(.system(size: 32))
+                                            .font(.system(size: 38))
                                             .foregroundStyle(.blue)
                                             .symbolEffect(.bounce, value: showAddCardMenu)
+                                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                                     }
-                                    .padding(.trailing, 20)
+                                    .padding(.trailing, 36)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 8)
                                     .transition(.scale.combined(with: .opacity))
-                                    .confirmationDialog("カードを追加", isPresented: $showAddCardMenu) {
-                                        ForEach(availableCardsToAdd(), id: \.self) { cardType in
-                                            Button(cardTypeDisplayName(cardType)) {
-                                                addCard(cardType)
-                                            }
-                                        }
-                                        Button("キャンセル", role: .cancel) {}
-                                    } message: {
-                                        Text("追加するカードを選択してください")
-                                    }
                                 }
                             }
-                            .frame(height: isEditMode && visibleCards.count < MetricCardType.allCases.count ? 40 : 0)
+                            .frame(height: isEditMode && visibleCards.count < MetricCardType.allCases.count ? 54 : 0)
                             .opacity(isEditMode && visibleCards.count < MetricCardType.allCases.count ? 1 : 0)
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isEditMode)
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: visibleCards.count)
@@ -389,7 +557,7 @@ struct PhoneWorkoutView: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.top, 0)
-                            .padding(.bottom, 12)
+                            .padding(.bottom, 0)
                         }
                     }
                     .blur(radius: isEditMode ? 1 : 0)
@@ -398,8 +566,8 @@ struct PhoneWorkoutView: View {
                     // ボタンを下部に固定
                     controlButtons()
                         .padding(.horizontal, 12)
-                        .padding(.top, 12)
-                        .padding(.bottom, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 18)
                         .background(Color(UIColor.systemBackground))
                 }
                 
@@ -1056,45 +1224,70 @@ struct MarathonTimeCard: View {
 
 struct PhoneMusicControlView: View {
     @StateObject private var musicController = PhoneMusicController()
-    @State private var volume: Double = 0.5
+    @State private var showPermissionAlert = false
+    @State private var showMusicPicker = false
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                artworkView
+                artworkView()
                     .padding(.top, 20)
-                nowPlayingInfo
-                playbackControls
+                    .onTapGesture {
+                        // アートワークタップで曲選択
+                        showMusicPicker = true
+                    }
+                nowPlayingInfo()
+                playbackControls()
                     .padding(.vertical, 8)
-                volumeControl
-                    .padding(.horizontal)
                 Spacer()
             }
-            .navigationTitle("ミュージック")
+            .navigationTitle("Apple Music")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("ミュージック")
-                        .font(.headline)
+                    Text("Apple Music")
+                        .font(.system(size: 17 * 1.5, weight: .semibold)) // 1.5倍のサイズ（25.5pt）
+                        .foregroundStyle(.pink) // ピンク色に設定
                 }
             }
             .onAppear {
-                volume = musicController.volume
-                musicController.startMonitoring()
+                print("🎵 PhoneMusicControlView appeared")
+                
+                // 音楽ライブラリへのアクセスを要求
+                musicController.requestMusicLibraryAccess { granted in
+                    if granted {
+                        musicController.startMonitoring()
+                    } else {
+                        showPermissionAlert = true
+                    }
+                }
             }
             .onDisappear {
+                print("🎵 PhoneMusicControlView disappeared")
                 musicController.stopMonitoring()
             }
-            .onChange(of: volume) { oldValue, newValue in
-                musicController.setVolume(newValue)
+            .alert("音楽ライブラリへのアクセス", isPresented: $showPermissionAlert) {
+                Button("設定を開く") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("ミュージックを制御するには、設定で音楽ライブラリへのアクセスを許可してください。")
+            }
+            .sheet(isPresented: $showMusicPicker) {
+                MusicPickerView(musicController: musicController)
             }
         }
     }
     
     // アートワーク表示
-    private var artworkView: some View {
+    @ViewBuilder
+    private func artworkView() -> some View {
         Group {
-            if let artwork = musicController.currentArtwork {
+            // アートワークがある場合は表示し続ける（停止してもアートワークを保持）
+            if let artwork = musicController.displayArtwork {
                 Image(uiImage: artwork)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -1103,26 +1296,37 @@ struct PhoneMusicControlView: View {
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                     .transition(.scale.combined(with: .opacity))
             } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(LinearGradient(
-                        colors: [Color.pink.opacity(0.6), Color.purple.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 280, height: 280)
-                    .overlay {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 80))
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-                    .transition(.scale.combined(with: .opacity))
+                // アートワークがない場合はタップで曲選択を促す
+                Button {
+                    showMusicPicker = true
+                } label: {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(
+                            colors: [Color.pink.opacity(0.6), Color.pink.opacity(0.4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 280, height: 280)
+                        .overlay {
+                            VStack(spacing: 16) {
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 80))
+                                    .foregroundStyle(.white.opacity(0.8))
+                                Text("タップして曲を選択")
+                                    .font(.headline)
+                                    .foregroundStyle(.white.opacity(0.9))
+                            }
+                        }
+                        .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: musicController.currentArtwork)
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: musicController.displayArtwork)
     }
     
-    private var nowPlayingInfo: some View {
+    @ViewBuilder
+    private func nowPlayingInfo() -> some View {
         VStack(spacing: 8) {
             if let title = musicController.currentTrackTitle {
                 Text(title)
@@ -1131,15 +1335,15 @@ struct PhoneMusicControlView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal)
-                if let artist = musicController.currentArtist {
-                    Text(artist)
+                if let artistName = musicController.currentArtist {
+                    Text(artistName)
                         .font(.headline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(1)
                 }
-                if let album = musicController.currentAlbum {
-                    Text(album)
+                if let albumName = musicController.currentAlbum {
+                    Text(albumName)
                         .font(.subheadline)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
@@ -1155,178 +1359,564 @@ struct PhoneMusicControlView: View {
         .padding(.horizontal)
     }
     
-    private var playbackControls: some View {
+    @ViewBuilder
+    private func playbackControls() -> some View {
         HStack(spacing: 60) {
             Button {
-                musicController.skipToPrevious()
+                // 現在再生中の曲情報がある場合のみ有効
+                if musicController.currentArtwork != nil {
+                    musicController.skipToPrevious()
+                }
             } label: {
                 Image(systemName: "backward.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(Color.pink)
+                    .foregroundStyle(musicController.currentArtwork != nil ? .pink : .gray)
             }
+            .disabled(musicController.currentArtwork == nil)
+            
             Button {
-                musicController.togglePlayPause()
+                // currentArtwork（現在再生中）がない場合は曲選択画面を表示
+                // displayArtwork（停止後も保持）ではなくcurrentArtworkで判定
+                if musicController.currentArtwork == nil {
+                    showMusicPicker = true
+                } else {
+                    // 曲情報がある場合は再生/一時停止
+                    musicController.togglePlayPause()
+                }
             } label: {
                 Image(systemName: musicController.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 80))
-                    .foregroundStyle(Color.pink)
+                    .foregroundStyle(.pink)
             }
+            
             Button {
-                musicController.skipToNext()
+                // 現在再生中の曲情報がある場合のみ有効
+                if musicController.currentArtwork != nil {
+                    musicController.skipToNext()
+                }
             } label: {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(Color.pink)
+                    .foregroundStyle(musicController.currentArtwork != nil ? .pink : .gray)
             }
-        }
-    }
-    
-    private var volumeControl: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "speaker.fill")
-                Slider(value: $volume, in: 0...1)
-                    .tint(.pink)
-                Image(systemName: "speaker.wave.3.fill")
-            }
-            Text("\(Int(round(volume * 100)))%")
-                .font(.headline)
-                .monospacedDigit()
+            .disabled(musicController.currentArtwork == nil)
         }
     }
 }
 
 @MainActor
-class PhoneMusicController: ObservableObject {
+class PhoneMusicController: NSObject, ObservableObject {
+    // Apple Music用
     @Published var isPlaying: Bool = false
-    @Published var volume: Double = 0.5
     @Published var currentTrackTitle: String? = nil
     @Published var currentArtist: String? = nil
     @Published var currentAlbum: String? = nil
     @Published var currentArtwork: UIImage? = nil
+    @Published var displayArtwork: UIImage? = nil // 停止してもアートワークを保持
     
-    private var timer: Timer?
-    private let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
-    private let remoteCommandCenter = MPRemoteCommandCenter.shared()
+    private let musicPlayer = MPMusicPlayerController.systemMusicPlayer
+    private var hasLibraryAccess = false
     
-    init() {
-        loadVolume()
-        setupRemoteCommands()
+    override init() {
+        super.init()
+        print("🎵 PhoneMusicController initialized")
     }
     
-    private func setupRemoteCommands() {
-        remoteCommandCenter.playCommand.isEnabled = true
-        remoteCommandCenter.playCommand.addTarget { [weak self] _ in
-            guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.isPlaying = true
-                self?.updateNowPlayingInfo()
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    
+    func requestMusicLibraryAccess(completion: @escaping (Bool) -> Void) {
+        MPMediaLibrary.requestAuthorization { [weak self] status in
+            DispatchQueue.main.async {
+                self?.hasLibraryAccess = (status == .authorized)
+                print("🎵 Music Library Access: \(status == .authorized ? "Granted" : "Denied")")
+                completion(status == .authorized)
             }
-            return .success
-        }
-        remoteCommandCenter.pauseCommand.isEnabled = true
-        remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in
-            guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.isPlaying = false
-            }
-            return .success
-        }
-        remoteCommandCenter.nextTrackCommand.isEnabled = true
-        remoteCommandCenter.nextTrackCommand.addTarget { [weak self] _ in
-            guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
-            }
-            return .success
-        }
-        remoteCommandCenter.previousTrackCommand.isEnabled = true
-        remoteCommandCenter.previousTrackCommand.addTarget { [weak self] _ in
-            guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
-            }
-            return .success
         }
     }
+    
     
     func startMonitoring() {
+        print("🎵 Starting music monitoring...")
+        
+        // Now Playing Info Centerからの通知を監視
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNowPlayingItemChanged),
+            name: .MPMusicPlayerControllerNowPlayingItemDidChange,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePlaybackStateChanged),
+            name: .MPMusicPlayerControllerPlaybackStateDidChange,
+            object: nil
+        )
+        
+        // Now Playing Info Centerの通知も監視（Spotify等のサードパーティアプリ用）
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNowPlayingInfoChanged),
+            name: NSNotification.Name("MPNowPlayingInfoDidChange"),
+            object: nil
+        )
+        
+        // 音楽プレイヤーの通知を有効化
+        musicPlayer.beginGeneratingPlaybackNotifications()
+        
+        // Now Playing Infoを取得
         updateNowPlayingInfo()
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
-            }
-        }
+        
+        print("🎵 Music monitoring started successfully")
+    }
+    
+    @objc private func handleNowPlayingInfoChanged() {
+        print("🎵 Now Playing Info changed (notification)")
+        updateNowPlayingInfo()
+    }
+    
+    @objc private func handleNowPlayingItemChanged() {
+        print("🎵 Now playing item changed (notification)")
+        updateNowPlayingInfo()
+    }
+    
+    @objc private func handlePlaybackStateChanged() {
+        print("🎵 Playback state changed (notification)")
+        updateNowPlayingInfo()
     }
     
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        musicPlayer.endGeneratingPlaybackNotifications()
+        NotificationCenter.default.removeObserver(self, name: .MPMusicPlayerControllerNowPlayingItemDidChange, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .MPMusicPlayerControllerPlaybackStateDidChange, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSNotification.Name("MPNowPlayingInfoDidChange"), object: nil)
+        
+        print("🎵 Music monitoring stopped")
     }
     
+    
+    private var lastNowPlayingTitle: String? = nil
+    
     private func updateNowPlayingInfo() {
-        guard let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo else {
+        // Now Playing Info Centerから情報を取得（全てのアプリ対応）
+        let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
+        
+        // デバッグ：Now Playing Info辞書の全キーを表示
+        if let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo {
+            if !nowPlayingInfo.isEmpty {
+                // 再生状態を判定（再生レートから推測）
+                let playbackRate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Double ?? 0.0
+                let isNowPlayingActive = playbackRate > 0.0
+                
+                let newTitle = nowPlayingInfo[MPMediaItemPropertyTitle] as? String
+                let newArtist = nowPlayingInfo[MPMediaItemPropertyArtist] as? String
+                let newAlbum = nowPlayingInfo[MPMediaItemPropertyAlbumTitle] as? String
+                
+                // 曲が変わった時だけログ出力
+                if newTitle != lastNowPlayingTitle {
+                    print("🎵 ========== Now Playing Info Changed ==========")
+                    print("🎵 Dictionary keys: \(nowPlayingInfo.keys)")
+                    print("🎵 Dictionary count: \(nowPlayingInfo.count)")
+                    print("🎵 Title: \(newTitle ?? "nil")")
+                    print("🎵 Artist: \(newArtist ?? "nil")")
+                    print("🎵 Album: \(newAlbum ?? "nil")")
+                    print("🎵 Playback Rate: \(playbackRate)")
+                    print("🎵 Is Playing: \(isNowPlayingActive)")
+                    print("🎵 =============================================")
+                    lastNowPlayingTitle = newTitle
+                }
+                
+                // Now Playing Info Centerに情報がある場合は、その情報を表示
+                currentTrackTitle = newTitle
+                currentArtist = newArtist
+                currentAlbum = newAlbum
+                isPlaying = isNowPlayingActive
+                
+                // アートワークを取得して保持
+                if let artwork = nowPlayingInfo[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
+                    let artworkImage = artwork.image(at: CGSize(width: 280, height: 280))
+                    if artworkImage != currentArtwork {
+                        currentArtwork = artworkImage
+                        displayArtwork = artworkImage // 表示用にも保存
+                        print("🎵 Artwork loaded from Now Playing Info")
+                    }
+                } else if currentArtwork != nil {
+                    currentArtwork = nil
+                    // displayArtworkは保持（停止してもアートワークを表示し続ける）
+                }
+            } else {
+                if lastNowPlayingTitle != nil {
+                    print("🎵 Now Playing Info dictionary is empty")
+                    lastNowPlayingTitle = nil
+                }
+                handleNoNowPlayingInfo()
+            }
+        } else {
+            if lastNowPlayingTitle != nil {
+                print("🎵 Now Playing Info is nil")
+                lastNowPlayingTitle = nil
+            }
+            handleNoNowPlayingInfo()
+        }
+    }
+    
+    private func handleNoNowPlayingInfo() {
+        // Now Playing Info Centerに情報がない場合
+        print("🎵 No Now Playing Info available")
+        
+        // Apple Musicライブラリアクセスがある場合は常にチェック
+        if hasLibraryAccess {
+            print("🎵 Checking Apple Music (player state: \(musicPlayer.playbackState.rawValue))")
+            updateAppleMusicFromLibrary()
+        } else {
+            print("🎵 No library access - clearing all info")
+            // 何も再生していない
+            clearAllMusicInfo()
+        }
+    }
+    
+    private func clearAllMusicInfo() {
+        if currentTrackTitle != nil {
+            print("🎵 No track playing - clearing all info")
             currentTrackTitle = nil
             currentArtist = nil
             currentAlbum = nil
             currentArtwork = nil
-            return
+            isPlaying = false
         }
+    }
+    
+    private func updateAppleMusicFromLibrary() {
+        guard hasLibraryAccess else { return }
         
-        currentTrackTitle = nowPlayingInfo[MPMediaItemPropertyTitle] as? String
-        currentArtist = nowPlayingInfo[MPMediaItemPropertyArtist] as? String
-        currentAlbum = nowPlayingInfo[MPMediaItemPropertyAlbumTitle] as? String
-        
-        // アートワークを取得
-        if let artworkData = nowPlayingInfo[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-            // 280x280のサイズでアートワークを取得
-            let artwork = artworkData.image(at: CGSize(width: 280, height: 280))
-            currentArtwork = artwork
+        if let nowPlayingItem = musicPlayer.nowPlayingItem {
+            let newTitle = nowPlayingItem.title
+            let newArtist = nowPlayingItem.artist
+            let newAlbum = nowPlayingItem.albumTitle
+            
+            if currentTrackTitle != newTitle {
+                currentTrackTitle = newTitle
+                print("🎵 Apple Music Track: \(newTitle ?? "Unknown")")
+            }
+            if currentArtist != newArtist {
+                currentArtist = newArtist
+            }
+            if currentAlbum != newAlbum {
+                currentAlbum = newAlbum
+            }
+            
+            // アートワークを取得して保持
+            if let artworkProperty = nowPlayingItem.artwork {
+                let artwork = artworkProperty.image(at: CGSize(width: 280, height: 280))
+                if artwork != currentArtwork {
+                    currentArtwork = artwork
+                    displayArtwork = artwork // 表示用にも保存
+                    print("🎵 Apple Music Artwork loaded")
+                }
+            } else if currentArtwork != nil {
+                currentArtwork = nil
+                // displayArtworkは保持（停止してもアートワークを表示し続ける）
+            }
+            
+            // 再生状態を取得
+            let newIsPlaying = musicPlayer.playbackState == .playing
+            if isPlaying != newIsPlaying {
+                isPlaying = newIsPlaying
+                print("🎵 Apple Music Playing: \(newIsPlaying)")
+            }
         } else {
-            currentArtwork = nil
-        }
-        
-        if let rate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Double {
-            isPlaying = rate > 0
+            // Apple Musicで何も再生していない
+            if currentTrackTitle != nil {
+                print("🎵 Apple Music - No track playing")
+                currentTrackTitle = nil
+                currentArtist = nil
+                currentAlbum = nil
+                currentArtwork = nil
+                isPlaying = false
+                // displayArtworkは保持（停止してもアートワークを表示し続ける）
+            }
         }
     }
     
     func togglePlayPause() {
-        isPlaying.toggle()
+        // システムミュージックプレイヤーを使用して再生/一時停止を制御（Apple Music）
+        if isPlaying {
+            musicPlayer.pause()
+            print("🎵 Apple Music paused")
+        } else {
+            musicPlayer.play()
+            print("🎵 Apple Music playing")
+        }
+        
+        // すぐにUIを更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.updateNowPlayingInfo()
+        }
     }
     
     func skipToNext() {
-        print("🎵 Skip to next")
+        // システムミュージックプレイヤーで次の曲へ（Apple Music）
+        musicPlayer.skipToNextItem()
+        print("🎵 Apple Music - Skipped to next track")
+        
+        // 少し遅延してから情報を更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateNowPlayingInfo()
+        }
     }
     
     func skipToPrevious() {
-        print("🎵 Skip to previous")
+        // システムミュージックプレイヤーで前の曲へ（Apple Music）
+        musicPlayer.skipToPreviousItem()
+        print("🎵 Apple Music - Skipped to previous track")
+        
+        // 少し遅延してから情報を更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateNowPlayingInfo()
+        }
     }
     
-    func setVolume(_ newVolume: Double) {
-        volume = newVolume
-        saveVolume()
-        MPVolumeView.setSystemVolume(Float(newVolume))
+    
+    // 曲を再生する
+    func playItem(_ item: MPMediaItem) {
+        print("🎵 Playing item: \(item.title ?? "Unknown")")
+        
+        // コレクションを作成して設定
+        let collection = MPMediaItemCollection(items: [item])
+        musicPlayer.setQueue(with: collection)
+        musicPlayer.play()
+        
+        // 少し遅延してから情報を更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateNowPlayingInfo()
+        }
     }
     
-    private func saveVolume() {
-        UserDefaults.standard.set(volume, forKey: "musicVolume")
-    }
-    
-    private func loadVolume() {
-        let savedVolume = UserDefaults.standard.double(forKey: "musicVolume")
-        volume = savedVolume > 0 ? savedVolume : 0.5
+    // アルバムを再生する
+    func playAlbum(_ album: MPMediaItemCollection) {
+        print("🎵 Playing album: \(album.representativeItem?.albumTitle ?? "Unknown")")
+        
+        musicPlayer.setQueue(with: album)
+        musicPlayer.play()
+        
+        // 少し遅延してから情報を更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.updateNowPlayingInfo()
+        }
     }
 }
 
-extension MPVolumeView {
-    static func setSystemVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            slider?.value = volume
+// 音楽選択画面
+struct MusicPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var musicController: PhoneMusicController
+    @State private var selectedTab = 0  // 0: アルバム, 1: 曲
+    @State private var searchText = ""
+    
+    // ライブラリから曲とアルバムを取得
+    private var allSongs: [MPMediaItem] {
+        let query = MPMediaQuery.songs()
+        return query.items ?? []
+    }
+    
+    private var allAlbums: [MPMediaItemCollection] {
+        let query = MPMediaQuery.albums()
+        return query.collections ?? []
+    }
+    
+    // 検索でフィルタリング
+    private var filteredSongs: [MPMediaItem] {
+        if searchText.isEmpty {
+            return allSongs
         }
+        return allSongs.filter { item in
+            let title = item.title?.lowercased() ?? ""
+            let artist = item.artist?.lowercased() ?? ""
+            let search = searchText.lowercased()
+            return title.contains(search) || artist.contains(search)
+        }
+    }
+    
+    private var filteredAlbums: [MPMediaItemCollection] {
+        if searchText.isEmpty {
+            return allAlbums
+        }
+        return allAlbums.filter { collection in
+            let albumTitle = collection.representativeItem?.albumTitle?.lowercased() ?? ""
+            let artist = collection.representativeItem?.artist?.lowercased() ?? ""
+            let search = searchText.lowercased()
+            return albumTitle.contains(search) || artist.contains(search)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // タブ選択（アルバムを最初に）
+                Picker("選択", selection: $selectedTab) {
+                    Text("アルバム").tag(0)
+                    Text("曲").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding()
+                
+                // 検索バー
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("検索", text: $searchText)
+                        .textFieldStyle(.plain)
+                    
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                
+                // リスト表示（アルバムが0、曲が1）
+                if selectedTab == 0 {
+                    albumsList
+                } else {
+                    songsList
+                }
+            }
+            .navigationTitle("ミュージックを選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    // 曲のリスト
+    private var songsList: some View {
+        List {
+            if filteredSongs.isEmpty {
+                Text("曲が見つかりません")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(filteredSongs, id: \.persistentID) { item in
+                    Button {
+                        musicController.playItem(item)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            // アートワーク
+                            if let artwork = item.artwork {
+                                Image(uiImage: artwork.image(at: CGSize(width: 50, height: 50)) ?? UIImage())
+                                    .resizable()
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            } else {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(.systemGray5))
+                                    .frame(width: 50, height: 50)
+                                    .overlay {
+                                        Image(systemName: "music.note")
+                                            .foregroundStyle(.secondary)
+                                    }
+                            }
+                            
+                            // タイトルとアーティスト
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.title ?? "不明な曲")
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                
+                                Text(item.artist ?? "不明なアーティスト")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .listStyle(.plain)
+    }
+    
+    // アルバムのリスト
+    private var albumsList: some View {
+        List {
+            if filteredAlbums.isEmpty {
+                Text("アルバムが見つかりません")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+            } else {
+                ForEach(filteredAlbums, id: \.persistentID) { collection in
+                    Button {
+                        musicController.playAlbum(collection)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            // アルバムアートワーク
+                            if let artwork = collection.representativeItem?.artwork {
+                                Image(uiImage: artwork.image(at: CGSize(width: 60, height: 60)) ?? UIImage())
+                                    .resizable()
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(.systemGray5))
+                                    .frame(width: 60, height: 60)
+                                    .overlay {
+                                        Image(systemName: "music.note.list")
+                                            .foregroundStyle(.secondary)
+                                    }
+                            }
+                            
+                            // アルバムタイトルとアーティスト
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(collection.representativeItem?.albumTitle ?? "不明なアルバム")
+                                    .font(.body)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                
+                                Text(collection.representativeItem?.artist ?? "不明なアーティスト")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                
+                                Text("\(collection.count)曲")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .listStyle(.plain)
     }
 }
 
@@ -1490,19 +2080,18 @@ struct ImprovedCardDropDelegate: DropDelegate {
         }
         
         // デバッグ出力
-        print("🔄 カード移動: \(draggingCard.rawValue) [\(fromIndex)] → \(currentCard.rawValue) [\(toIndex)]")
-        print("   移動前の順番: \(cardOrder.map { $0.rawValue })")
+        print("🔄 カード入れ替え: \(draggingCard.rawValue) [\(fromIndex)] ⇄ \(currentCard.rawValue) [\(toIndex)]")
+        print("   入れ替え前の順番: \(cardOrder.map { $0.rawValue })")
         
-        // ハプティックフィードバック（移動時）
+        // ハプティックフィードバック（入れ替え時）
         let feedback = UIImpactFeedbackGenerator(style: .light)
         feedback.impactOccurred()
         
-        // iPhoneのホーム画面のようにスムーズに入れ替え
+        // 2つのカードを入れ替え
         var newOrder = cardOrder
-        newOrder.remove(at: fromIndex)
-        newOrder.insert(draggingCard, at: toIndex)
+        newOrder.swapAt(fromIndex, toIndex)
         
-        print("   移動後の順番: \(newOrder.map { $0.rawValue })")
+        print("   入れ替え後の順番: \(newOrder.map { $0.rawValue })")
         
         // アニメーション付きで更新
         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -1537,6 +2126,151 @@ struct ImprovedCardDropDelegate: DropDelegate {
     
     func dropExited(info: DropInfo) {
         print("👋 ドロップエリアを出ました: \(currentCard.rawValue)")
+    }
+}
+
+// カード追加メニュー（複数選択可能、全て追加されたら自動で閉じる）
+struct AddCardMenuView: View {
+    @Binding var visibleCards: [MetricCardType]
+    @Binding var isPresented: Bool
+    
+    // 追加可能なカードリスト（現在表示されていないもの）
+    private var availableCards: [MetricCardType] {
+        MetricCardType.allCases.filter { !visibleCards.contains($0) }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if availableCards.isEmpty {
+                    // 全てのカードが追加済みの場合
+                    VStack(spacing: 16) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.green)
+                        
+                        Text("全てのカードが追加されています")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        Section {
+                            ForEach(availableCards) { cardType in
+                                Button {
+                                    addCard(cardType)
+                                } label: {
+                                    HStack(spacing: 16) {
+                                        Image(systemName: cardIcon(for: cardType))
+                                            .font(.system(size: 28))
+                                            .foregroundStyle(cardColor(for: cardType))
+                                            .frame(width: 40)
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(cardTypeDisplayName(cardType))
+                                                .font(.headline)
+                                                .foregroundStyle(.primary)
+                                            
+                                            Text(cardDescription(for: cardType))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundStyle(.blue)
+                                    }
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } header: {
+                            Text("追加可能なカード (\(availableCards.count))")
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle("カードを追加")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完了") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+    
+    private func addCard(_ cardType: MetricCardType) {
+        guard !visibleCards.contains(cardType) else { return }
+        
+        print("➕ カード追加: \(cardType.rawValue)")
+        
+        // 成功のハプティックフィードバック
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.success)
+        
+        // カードを追加
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            visibleCards.append(cardType)
+        }
+        
+        // 全てのカードが追加されたらログ出力（自動で閉じない）
+        if visibleCards.count == MetricCardType.allCases.count {
+            print("✅ 全てのカードが追加されました。完了ボタンで閉じてください。")
+        }
+    }
+    
+    private func cardTypeDisplayName(_ cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "距離"
+        case .calories: return "カロリー"
+        case .heartRate: return "平均心拍数"
+        case .pace: return "ペース"
+        case .steps: return "歩数"
+        case .marathon: return "フルマラソン予想"
+        }
+    }
+    
+    private func cardDescription(for cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "走行距離をkmで表示"
+        case .calories: return "消費カロリーをkcalで表示"
+        case .heartRate: return "平均心拍数をbpmで表示"
+        case .pace: return "1kmあたりのペースを表示"
+        case .steps: return "歩数をカウント"
+        case .marathon: return "現在のペースでの完走予想時間"
+        }
+    }
+    
+    private func cardIcon(for cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "figure.walk"
+        case .calories: return "flame.fill"
+        case .heartRate: return "heart.fill"
+        case .pace: return "timer"
+        case .steps: return "figure.walk.motion"
+        case .marathon: return "flag.checkered"
+        }
+    }
+    
+    private func cardColor(for cardType: MetricCardType) -> Color {
+        switch cardType {
+        case .distance: return .blue
+        case .calories: return .orange
+        case .heartRate: return .red
+        case .pace: return .green
+        case .steps: return .purple
+        case .marathon: return .cyan
+        }
     }
 }
 

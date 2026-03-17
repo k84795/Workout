@@ -45,20 +45,20 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
     private func setupMusicNotifications() {
         musicPlayer.beginGeneratingPlaybackNotifications()
         
-        // 再生状態の変更を監視
+        // 再生状態の変更を監視（サードパーティアプリにも対応）
         NotificationCenter.default.addObserver(
             forName: .MPMusicPlayerControllerPlaybackStateDidChange,
-            object: musicPlayer,
+            object: nil, // すべてのプレイヤーを監視
             queue: .main
         ) { [weak self] _ in
             self?.updateMusicState()
             self?.sendMusicInfoToWatch()
         }
         
-        // 曲の変更を監視
+        // 曲の変更を監視（サードパーティアプリにも対応）
         NotificationCenter.default.addObserver(
             forName: .MPMusicPlayerControllerNowPlayingItemDidChange,
-            object: musicPlayer,
+            object: nil, // すべてのプレイヤーを監視
             queue: .main
         ) { [weak self] _ in
             self?.updateMusicState()
@@ -66,57 +66,103 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         }
     }
     
-    // 音楽の状態を更新（iPhone単体モード用）
+    // 音楽の状態を更新（iPhone単体モード用、サードパーティアプリ対応）
     private func updateMusicState() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // 再生状態
-            self.isPlaying = self.musicPlayer.playbackState == .playing
+            // まずNow Playing Info Centerから情報を取得（サードパーティアプリ対応）
+            let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
             
-            // 現在再生中の曲情報
-            if let nowPlayingItem = self.musicPlayer.nowPlayingItem {
-                self.currentTrackTitle = nowPlayingItem.title
-                self.currentArtist = nowPlayingItem.artist
-                self.currentAlbum = nowPlayingItem.albumTitle
+            if let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo {
+                // サードパーティアプリの音楽情報を取得
+                self.currentTrackTitle = nowPlayingInfo[MPMediaItemPropertyTitle] as? String
+                self.currentArtist = nowPlayingInfo[MPMediaItemPropertyArtist] as? String
+                self.currentAlbum = nowPlayingInfo[MPMediaItemPropertyAlbumTitle] as? String
                 
                 // 再生時間
-                self.playbackTime = self.musicPlayer.currentPlaybackTime
-                self.duration = nowPlayingItem.playbackDuration
+                self.playbackTime = nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? TimeInterval ?? 0
+                self.duration = nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] as? TimeInterval ?? 0
+                
+                // 再生状態を判定（再生レートから推測）
+                let playbackRate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Double ?? 0.0
+                self.isPlaying = playbackRate > 0.0
+                
             } else {
-                self.currentTrackTitle = nil
-                self.currentArtist = nil
-                self.currentAlbum = nil
-                self.playbackTime = 0
-                self.duration = 0
+                // Now Playing Infoがない場合は、従来のMPMusicPlayerControllerを使用
+                self.isPlaying = self.musicPlayer.playbackState == .playing
+                
+                if let nowPlayingItem = self.musicPlayer.nowPlayingItem {
+                    self.currentTrackTitle = nowPlayingItem.title
+                    self.currentArtist = nowPlayingItem.artist
+                    self.currentAlbum = nowPlayingItem.albumTitle
+                    
+                    // 再生時間
+                    self.playbackTime = self.musicPlayer.currentPlaybackTime
+                    self.duration = nowPlayingItem.playbackDuration
+                } else {
+                    self.currentTrackTitle = nil
+                    self.currentArtist = nil
+                    self.currentAlbum = nil
+                    self.playbackTime = 0
+                    self.duration = 0
+                }
             }
         }
     }
     
-    // 現在の再生情報を取得
+    // 現在の再生情報を取得（サードパーティアプリ対応）
     private func getCurrentMusicInfo() -> [String: Any] {
         var info: [String: Any] = [:]
         
-        // 再生状態
-        info["isPlaying"] = musicPlayer.playbackState == .playing
+        // まずNow Playing Info Centerから情報を取得
+        let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
         
-        // 現在再生中の曲情報
-        if let nowPlayingItem = musicPlayer.nowPlayingItem {
-            if let title = nowPlayingItem.title {
+        if let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo {
+            // サードパーティアプリの音楽情報
+            if let title = nowPlayingInfo[MPMediaItemPropertyTitle] as? String {
                 info["title"] = title
             }
-            if let artist = nowPlayingItem.artist {
+            if let artist = nowPlayingInfo[MPMediaItemPropertyArtist] as? String {
                 info["artist"] = artist
             }
-            if let album = nowPlayingItem.albumTitle {
+            if let album = nowPlayingInfo[MPMediaItemPropertyAlbumTitle] as? String {
                 info["album"] = album
             }
             
             // 再生時間
-            info["playbackTime"] = musicPlayer.currentPlaybackTime
-            let duration = nowPlayingItem.playbackDuration
-            if duration > 0 {
+            if let playbackTime = nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? TimeInterval {
+                info["playbackTime"] = playbackTime
+            }
+            if let duration = nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] as? TimeInterval, duration > 0 {
                 info["duration"] = duration
+            }
+            
+            // 再生状態（再生レートから判定）
+            let playbackRate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Double ?? 0.0
+            info["isPlaying"] = playbackRate > 0.0
+            
+        } else {
+            // Now Playing Infoがない場合は、従来のMPMusicPlayerControllerを使用
+            info["isPlaying"] = musicPlayer.playbackState == .playing
+            
+            if let nowPlayingItem = musicPlayer.nowPlayingItem {
+                if let title = nowPlayingItem.title {
+                    info["title"] = title
+                }
+                if let artist = nowPlayingItem.artist {
+                    info["artist"] = artist
+                }
+                if let album = nowPlayingItem.albumTitle {
+                    info["album"] = album
+                }
+                
+                // 再生時間
+                info["playbackTime"] = musicPlayer.currentPlaybackTime
+                let duration = nowPlayingItem.playbackDuration
+                if duration > 0 {
+                    info["duration"] = duration
+                }
             }
         }
         
@@ -139,8 +185,9 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         })
     }
     
-    // 再生/一時停止のトグル（公開メソッド - iPhone単体モードでも使用可能）
+    // 再生/一時停止のトグル（公開メソッド - サードパーティアプリにも対応）
     func togglePlayPause() {
+        // MPMusicPlayerControllerを使用して再生/一時停止を制御
         if musicPlayer.playbackState == .playing {
             musicPlayer.pause()
             print("🎵 Music paused")
@@ -156,8 +203,9 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         }
     }
     
-    // 次の曲へ（公開メソッド - iPhone単体モードでも使用可能）
+    // 次の曲へ（公開メソッド）
     func skipToNext() {
+        // MPMusicPlayerControllerを使用して次の曲へ
         musicPlayer.skipToNextItem()
         print("🎵 Skipped to next track")
         
@@ -168,8 +216,9 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         }
     }
     
-    // 前の曲へ（公開メソッド - iPhone単体モードでも使用可能）
+    // 前の曲へ（公開メソッド）
     func skipToPrevious() {
+        // MPMusicPlayerControllerを使用して前の曲へ
         musicPlayer.skipToPreviousItem()
         print("🎵 Skipped to previous track")
         
@@ -180,15 +229,12 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         }
     }
     
-    // 音量を設定（公開メソッド - iPhone単体モードでも使用可能）
+    // 音量を設定（公開メソッド - Watch Connectivity用）
+    // 注: 実際の音量変更はWorkoutApp_iOS.swiftのSystemVolumeSlider（MPVolumeView）で行われます
     func setVolume(_ volume: Double) {
-        print("🔊 Volume change requested: \(Int(volume * 100))%")
-        
-        // MPVolumeViewを使ってシステム音量を変更
-        DispatchQueue.main.async {
-            MPVolumeView.setSystemVolume(Float(volume))
-            print("🔊 System volume set to: \(Int(volume * 100))%")
-        }
+        print("🔊 Volume change requested from Watch: \(Int(volume * 100))%")
+        // Watch Connectivity経由での音量変更要求を受け取るだけ
+        // 実際の音量変更はiPhone側のMPVolumeViewが担当
     }
 }
 
@@ -250,4 +296,6 @@ extension PhoneMusicConnectivityManager: WCSessionDelegate {
     }
 }
 #endif // os(iOS)
+
+
 

@@ -127,7 +127,7 @@ struct WorkoutView: View {
                         Spacer()
                             .frame(width: 15)
                         Text(workoutManager.workoutName)
-                            .font(.system(size: 11 * sizeScale))
+                            .font(.system(size: 5 * sizeScale))
                             .fontWeight(.semibold)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -135,6 +135,7 @@ struct WorkoutView: View {
                     }
                     .padding(.horizontal, 4)
                     .padding(.top, 6)
+                    .padding(.bottom, 0)  // ヘッダーとカードの間隔を詰める
                     
                     // 主要メトリクス - 距離とペースを大きく表示
                     VStack(spacing: 1) {
