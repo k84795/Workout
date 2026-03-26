@@ -54,16 +54,19 @@ struct PhoneWorkoutTypeSelectionView: View {
     @State private var isStarting = false
     @State private var showError = false
     
-    let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color)] = [
-        ("ウォーキング", .walking, "walking", .green),
-        ("ジョギング", .running, "jogging", .orange),
-        ("ランニング", .running, "running", .red)
+    let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color, textColor: Color)] = [
+        ("ウォーキング", .walking, "walking", .green, .green),
+        ("ジョギング", .running, "jogging", .orange, .blue),
+        ("ランニング", .running, "running", .red, .red)
     ]
     
     var body: some View {
         NavigationStack {
             ZStack {
-                List {
+                VStack(spacing: 24) {
+                    Spacer()
+                        .frame(height: 80)
+                    
                     ForEach(workoutTypes, id: \.name) { workout in
                         Button {
                             startWorkout(type: workout.type, name: workout.name)
@@ -76,19 +79,22 @@ struct PhoneWorkoutTypeSelectionView: View {
                                     .foregroundStyle(workout.color)
                                 
                                 Text(workout.name)
-                                    .font(.title3)
-                                    .fontWeight(.semibold)
+                                    .font(.system(size: 36, weight: .bold))
+                                    .foregroundStyle(workout.textColor)
                                 
                                 Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 20)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
                         }
                         .disabled(isStarting)
                     }
+                    
+                    Spacer()
                 }
+                .padding(.horizontal, 20)
                 .opacity(isStarting ? 0.3 : 1.0)
                 .disabled(isStarting)
                 
@@ -107,6 +113,14 @@ struct PhoneWorkoutTypeSelectionView: View {
                 }
             }
             .navigationTitle("ワークアウト")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("ワークアウト")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                }
+            }
             .alert("エラー", isPresented: $showError) {
                 Button("OK") {
                     workoutManager.errorMessage = nil
