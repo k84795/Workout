@@ -14,9 +14,9 @@ struct WorkoutTypeSelectionView: View {
     @State private var showError = false
     
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color)] = [
-        ("ウォーキング", .walking, "figure.walk", .green),
-        ("ジョギング", .running, "figure.run", .orange),
-        ("ランニング", .running, "figure.run.circle", .red)
+        ("ウォーキング", .walking, "walking", .green),
+        ("ジョギング", .running, "jogging", .blue),
+        ("ランニング", .running, "running", .red)
     ]
     
     var body: some View {
@@ -27,13 +27,14 @@ struct WorkoutTypeSelectionView: View {
                         startWorkout(type: workout.type, name: workout.name)
                     } label: {
                         HStack {
-                            Image(systemName: workout.icon)
-                                .font(.title2)
-                                .foregroundStyle(workout.color)
-                                .frame(width: 40)
+                            Image(workout.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 40, height: 40)
                             
                             Text(workout.name)
                                 .font(.headline)
+                                .foregroundStyle(workout.color)
                             
                             Spacer()
                         }
