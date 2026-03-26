@@ -180,15 +180,10 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         }
     }
     
-    // 音量を設定（公開メソッド - iPhone単体モードでも使用可能）
+    // 音量を設定（Watchからのリクエスト用 - 実装は保留）
     func setVolume(_ volume: Double) {
-        print("🔊 Volume change requested: \(Int(volume * 100))%")
-        
-        // MPVolumeViewを使ってシステム音量を変更
-        DispatchQueue.main.async {
-            MPVolumeView.setSystemVolume(Float(volume))
-            print("🔊 System volume set to: \(Int(volume * 100))%")
-        }
+        print("🔊 Volume change requested: \(Int(volume * 100))% - Feature not implemented in new UI")
+        // 新しいUIでは音量バーを廃止したため、この機能は使用しない
     }
 }
 

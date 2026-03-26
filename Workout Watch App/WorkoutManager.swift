@@ -80,7 +80,7 @@ class WorkoutManager: NSObject, ObservableObject {
         
         print("🔵 WorkoutManager initialized")
         checkAuthorizationStatus()
-        requestAuthorization()
+        // 権限リクエストはUIが表示された後に行う（init時には行わない）
     }
     
     private func checkAuthorizationStatus() {

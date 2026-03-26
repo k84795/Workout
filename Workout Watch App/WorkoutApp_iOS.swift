@@ -32,6 +32,7 @@ struct WorkoutPhoneApp: App {
 
 struct PhoneContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
+    @State private var hasRequestedAuthorization = false
     
     var body: some View {
         Group {
@@ -46,6 +47,16 @@ struct PhoneContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
+        .onAppear {
+            // UIが表示された後に権限をリクエスト（初回のみ）
+            if !hasRequestedAuthorization {
+                hasRequestedAuthorization = true
+                // わずかな遅延を入れてUIが完全に表示されてから実行
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    workoutManager.requestAuthorization()
+                }
+            }
+        }
     }
 }
 
@@ -1087,37 +1098,40 @@ struct MarathonTimeCard: View {
 
 struct PhoneMusicControlView: View {
     @StateObject private var musicController = PhoneMusicController()
-    @State private var volume: Double = 0.5
+    @State private var showMusicPicker = false
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 artworkView
                     .padding(.top, 20)
+                    .onTapGesture {
+                        if !musicController.hasNowPlayingInfo {
+                            showMusicPicker = true
+                        }
+                    }
                 nowPlayingInfo
                 playbackControls
                     .padding(.vertical, 8)
-                volumeControl
-                    .padding(.horizontal)
                 Spacer()
             }
-            .navigationTitle("ミュージック")
+            .navigationTitle("Apple Music")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("ミュージック")
-                        .font(.headline)
+                    Text("Apple Music")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.pink)
                 }
             }
             .onAppear {
-                volume = musicController.volume
                 musicController.startMonitoring()
             }
             .onDisappear {
                 musicController.stopMonitoring()
             }
-            .onChange(of: volume) { oldValue, newValue in
-                musicController.setVolume(newValue)
+            .sheet(isPresented: $showMusicPicker) {
+                MusicPickerView(musicController: musicController)
             }
         }
     }
@@ -1195,13 +1209,20 @@ struct PhoneMusicControlView: View {
                     .font(.system(size: 40))
                     .foregroundStyle(Color.pink)
             }
+            .disabled(!musicController.hasNowPlayingInfo)
+            
             Button {
-                musicController.togglePlayPause()
+                if musicController.hasNowPlayingInfo {
+                    musicController.togglePlayPause()
+                } else {
+                    showMusicPicker = true
+                }
             } label: {
                 Image(systemName: musicController.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 80))
                     .foregroundStyle(Color.pink)
             }
+            
             Button {
                 musicController.skipToNext()
             } label: {
@@ -1209,20 +1230,7 @@ struct PhoneMusicControlView: View {
                     .font(.system(size: 40))
                     .foregroundStyle(Color.pink)
             }
-        }
-    }
-    
-    private var volumeControl: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "speaker.fill")
-                Slider(value: $volume, in: 0...1)
-                    .tint(.pink)
-                Image(systemName: "speaker.wave.3.fill")
-            }
-            Text("\(Int(round(volume * 100)))%")
-                .font(.headline)
-                .monospacedDigit()
+            .disabled(!musicController.hasNowPlayingInfo)
         }
     }
 }
@@ -1230,19 +1238,52 @@ struct PhoneMusicControlView: View {
 @MainActor
 class PhoneMusicController: ObservableObject {
     @Published var isPlaying: Bool = false
-    @Published var volume: Double = 0.5
     @Published var currentTrackTitle: String? = nil
     @Published var currentArtist: String? = nil
     @Published var currentAlbum: String? = nil
     @Published var currentArtwork: UIImage? = nil
+    @Published var hasNowPlayingInfo: Bool = false
     
     private var timer: Timer?
+    private let musicPlayer = MPMusicPlayerController.systemMusicPlayer
     private let nowPlayingInfoCenter = MPNowPlayingInfoCenter.default()
     private let remoteCommandCenter = MPRemoteCommandCenter.shared()
     
     init() {
-        loadVolume()
         setupRemoteCommands()
+        setupMusicPlayerNotifications()
+    }
+    
+    
+    private func setupMusicPlayerNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .MPMusicPlayerControllerPlaybackStateDidChange,
+            object: musicPlayer,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                self?.updatePlaybackState()
+            }
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: .MPMusicPlayerControllerNowPlayingItemDidChange,
+            object: musicPlayer,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                self?.updateNowPlayingInfo()
+            }
+        }
+        
+        musicPlayer.beginGeneratingPlaybackNotifications()
+    }
+    
+    deinit {
+        musicPlayer.endGeneratingPlaybackNotifications()
+        NotificationCenter.default.removeObserver(self)
     }
     
     private func setupRemoteCommands() {
@@ -1250,32 +1291,34 @@ class PhoneMusicController: ObservableObject {
         remoteCommandCenter.playCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
             Task { @MainActor [weak self] in
-                self?.isPlaying = true
-                self?.updateNowPlayingInfo()
+                self?.musicPlayer.play()
             }
             return .success
         }
+        
         remoteCommandCenter.pauseCommand.isEnabled = true
         remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
             Task { @MainActor [weak self] in
-                self?.isPlaying = false
+                self?.musicPlayer.pause()
             }
             return .success
         }
+        
         remoteCommandCenter.nextTrackCommand.isEnabled = true
         remoteCommandCenter.nextTrackCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
             Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
+                self?.musicPlayer.skipToNextItem()
             }
             return .success
         }
+        
         remoteCommandCenter.previousTrackCommand.isEnabled = true
         remoteCommandCenter.previousTrackCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
             Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
+                self?.musicPlayer.skipToPreviousItem()
             }
             return .success
         }
@@ -1283,10 +1326,13 @@ class PhoneMusicController: ObservableObject {
     
     func startMonitoring() {
         updateNowPlayingInfo()
+        updatePlaybackState()
+        
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor [weak self] in
                 self?.updateNowPlayingInfo()
+                self?.updatePlaybackState()
             }
         }
     }
@@ -1296,68 +1342,267 @@ class PhoneMusicController: ObservableObject {
         timer = nil
     }
     
+    private func updatePlaybackState() {
+        isPlaying = musicPlayer.playbackState == .playing
+    }
+    
     private func updateNowPlayingInfo() {
-        guard let nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo else {
+        guard let nowPlayingItem = musicPlayer.nowPlayingItem else {
             currentTrackTitle = nil
             currentArtist = nil
             currentAlbum = nil
             currentArtwork = nil
+            hasNowPlayingInfo = false
             return
         }
         
-        currentTrackTitle = nowPlayingInfo[MPMediaItemPropertyTitle] as? String
-        currentArtist = nowPlayingInfo[MPMediaItemPropertyArtist] as? String
-        currentAlbum = nowPlayingInfo[MPMediaItemPropertyAlbumTitle] as? String
+        hasNowPlayingInfo = true
+        currentTrackTitle = nowPlayingItem.title
+        currentArtist = nowPlayingItem.artist
+        currentAlbum = nowPlayingItem.albumTitle
         
         // アートワークを取得
-        if let artworkData = nowPlayingInfo[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork {
-            // 280x280のサイズでアートワークを取得
+        if let artworkData = nowPlayingItem.artwork {
             let artwork = artworkData.image(at: CGSize(width: 280, height: 280))
             currentArtwork = artwork
         } else {
             currentArtwork = nil
         }
-        
-        if let rate = nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] as? Double {
-            isPlaying = rate > 0
-        }
     }
     
     func togglePlayPause() {
-        isPlaying.toggle()
+        if isPlaying {
+            musicPlayer.pause()
+        } else {
+            musicPlayer.play()
+        }
     }
     
     func skipToNext() {
-        print("🎵 Skip to next")
+        musicPlayer.skipToNextItem()
     }
     
     func skipToPrevious() {
-        print("🎵 Skip to previous")
+        musicPlayer.skipToPreviousItem()
     }
     
-    func setVolume(_ newVolume: Double) {
-        volume = newVolume
-        saveVolume()
-        MPVolumeView.setSystemVolume(Float(newVolume))
+    func playItem(_ item: MPMediaItem) {
+        let collection = MPMediaItemCollection(items: [item])
+        musicPlayer.setQueue(with: collection)
+        musicPlayer.play()
     }
     
-    private func saveVolume() {
-        UserDefaults.standard.set(volume, forKey: "musicVolume")
-    }
-    
-    private func loadVolume() {
-        let savedVolume = UserDefaults.standard.double(forKey: "musicVolume")
-        volume = savedVolume > 0 ? savedVolume : 0.5
+    func playAlbum(_ album: MPMediaItemCollection) {
+        musicPlayer.setQueue(with: album)
+        musicPlayer.play()
     }
 }
 
-extension MPVolumeView {
-    static func setSystemVolume(_ volume: Float) {
-        let volumeView = MPVolumeView()
-        let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-            slider?.value = volume
+// MARK: - Music Picker View
+struct MusicPickerView: View {
+    @ObservedObject var musicController: PhoneMusicController
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedAlbum: MPMediaItemCollection?
+    @State private var albums: [MPMediaItemCollection] = []
+    @State private var showingSongPicker = false
+    @State private var mediaLibraryAuthorized = false
+    
+    var body: some View {
+        NavigationStack {
+            Group {
+                if !mediaLibraryAuthorized {
+                    ContentUnavailableView(
+                        "Apple Musicへのアクセスが必要です",
+                        systemImage: "music.note",
+                        description: Text("設定からApple Musicライブラリへのアクセスを許可してください")
+                    )
+                } else if albums.isEmpty {
+                    ContentUnavailableView(
+                        "アルバムが見つかりません",
+                        systemImage: "music.note",
+                        description: Text("Apple Musicライブラリにアルバムを追加してください")
+                    )
+                } else {
+                    albumsList
+                }
+            }
+            .navigationTitle("アルバムを選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                checkMediaLibraryAccess()
+            }
+            .sheet(isPresented: $showingSongPicker) {
+                if let album = selectedAlbum {
+                    SongPickerView(
+                        album: album,
+                        musicController: musicController,
+                        onSongSelected: {
+                            dismiss()
+                        }
+                    )
+                }
+            }
         }
+    }
+    
+    private var albumsList: some View {
+        List(albums, id: \.persistentID) { album in
+            Button {
+                selectedAlbum = album
+                showingSongPicker = true
+            } label: {
+                HStack(spacing: 12) {
+                    // アルバムアートワーク
+                    if let artwork = album.representativeItem?.artwork {
+                        Image(uiImage: artwork.image(at: CGSize(width: 60, height: 60)) ?? UIImage())
+                            .resizable()
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 60, height: 60)
+                            .overlay {
+                                Image(systemName: "music.note")
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(album.representativeItem?.albumTitle ?? "不明なアルバム")
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                        
+                        Text(album.representativeItem?.albumArtist ?? album.representativeItem?.artist ?? "不明なアーティスト")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private func checkMediaLibraryAccess() {
+        let status = MPMediaLibrary.authorizationStatus()
+        
+        switch status {
+        case .authorized:
+            mediaLibraryAuthorized = true
+            loadAlbums()
+            
+        case .notDetermined:
+            MPMediaLibrary.requestAuthorization { status in
+                DispatchQueue.main.async {
+                    if status == .authorized {
+                        mediaLibraryAuthorized = true
+                        loadAlbums()
+                    }
+                }
+            }
+            
+        default:
+            mediaLibraryAuthorized = false
+        }
+    }
+    
+    private func loadAlbums() {
+        let query = MPMediaQuery.albums()
+        albums = query.collections ?? []
+    }
+}
+
+// MARK: - Song Picker View
+struct SongPickerView: View {
+    let album: MPMediaItemCollection
+    @ObservedObject var musicController: PhoneMusicController
+    let onSongSelected: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                // アルバム全体を再生するオプション
+                Button {
+                    musicController.playAlbum(album)
+                    onSongSelected()
+                } label: {
+                    HStack {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.pink)
+                        
+                        Text("アルバムをすべて再生")
+                            .font(.headline)
+                        
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                Section("曲") {
+                    ForEach(album.items, id: \.persistentID) { item in
+                        Button {
+                            musicController.playItem(item)
+                            onSongSelected()
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(item.title ?? "不明な曲")
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                    
+                                    Text(item.artist ?? "不明なアーティスト")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                if let duration = item.playbackDuration as? TimeInterval, duration > 0 {
+                                    Text(formatDuration(duration))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle(album.representativeItem?.albumTitle ?? "曲を選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("戻る") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
