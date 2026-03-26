@@ -357,22 +357,22 @@ struct PhoneWorkoutView: View {
                                     }
                                     .padding(.trailing, 20)
                                     .transition(.scale.combined(with: .opacity))
-                                    .confirmationDialog("カードを追加", isPresented: $showAddCardMenu) {
-                                        ForEach(availableCardsToAdd(), id: \.self) { cardType in
-                                            Button(cardTypeDisplayName(cardType)) {
-                                                addCard(cardType)
-                                            }
-                                        }
-                                        Button("キャンセル", role: .cancel) {}
-                                    } message: {
-                                        Text("追加するカードを選択してください")
-                                    }
                                 }
                             }
                             .frame(height: isEditMode && visibleCards.count < MetricCardType.allCases.count ? 40 : 0)
                             .opacity(isEditMode && visibleCards.count < MetricCardType.allCases.count ? 1 : 0)
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isEditMode)
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: visibleCards.count)
+                            .sheet(isPresented: $showAddCardMenu) {
+                                CardSelectionSheet(
+                                    availableCards: availableCardsToAdd(),
+                                    onCardsSelected: { selectedCards in
+                                        addCards(selectedCards)
+                                    }
+                                )
+                                .presentationDetents([.medium])
+                                .presentationDragIndicator(.visible)
+                            }
                             
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                                 ForEach(visibleCards) { cardType in
@@ -803,6 +803,22 @@ struct PhoneWorkoutView: View {
         
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             visibleCards.append(cardType)
+        }
+    }
+    
+    private func addCards(_ cardTypes: [MetricCardType]) {
+        // 選択順に追加（既に存在するカードは除外）
+        let cardsToAdd = cardTypes.filter { !visibleCards.contains($0) }
+        
+        guard !cardsToAdd.isEmpty else { return }
+        
+        print("➕ カード一括追加: \(cardsToAdd.map { $0.rawValue })")
+        
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.success)
+        
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+            visibleCards.append(contentsOf: cardsToAdd)
         }
     }
     
@@ -1552,6 +1568,146 @@ struct ImprovedCardDropDelegate: DropDelegate {
     
     func dropExited(info: DropInfo) {
         print("👋 ドロップエリアを出ました: \(currentCard.rawValue)")
+    }
+}
+
+// MARK: - カード選択シート
+struct CardSelectionSheet: View {
+    let availableCards: [MetricCardType]
+    let onCardsSelected: ([MetricCardType]) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedCards: [MetricCardType] = []
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if availableCards.isEmpty {
+                    ContentUnavailableView(
+                        "すべてのカードを表示中",
+                        systemImage: "checkmark.circle.fill",
+                        description: Text("追加できるカードがありません")
+                    )
+                } else {
+                    List {
+                        Section {
+                            ForEach(availableCards, id: \.self) { cardType in
+                                Button {
+                                    toggleCardSelection(cardType)
+                                } label: {
+                                    HStack(spacing: 16) {
+                                        // カードアイコン
+                                        Image(systemName: cardIconName(cardType))
+                                            .font(.system(size: 24))
+                                            .foregroundStyle(cardColor(cardType))
+                                            .frame(width: 32)
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(cardTypeDisplayName(cardType))
+                                                .font(.body)
+                                                .foregroundStyle(.primary)
+                                            
+                                            // 選択順序を表示
+                                            if let index = selectedCards.firstIndex(of: cardType) {
+                                                Text("選択順序: \(index + 1)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        // チェックマーク
+                                        if selectedCards.contains(cardType) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 24))
+                                                .foregroundStyle(.blue)
+                                                .transition(.scale.combined(with: .opacity))
+                                        } else {
+                                            Image(systemName: "circle")
+                                                .font(.system(size: 24))
+                                                .foregroundStyle(.secondary.opacity(0.3))
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } header: {
+                            Text("追加するカードを選択してください")
+                        } footer: {
+                            if !selectedCards.isEmpty {
+                                Text("選択したカードは選択順に並びます")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("カードを追加")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完了") {
+                        onCardsSelected(selectedCards)
+                        dismiss()
+                    }
+                    .disabled(selectedCards.isEmpty)
+                }
+            }
+        }
+    }
+    
+    private func toggleCardSelection(_ cardType: MetricCardType) {
+        let feedback = UIImpactFeedbackGenerator(style: .light)
+        feedback.impactOccurred()
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if let index = selectedCards.firstIndex(of: cardType) {
+                selectedCards.remove(at: index)
+            } else {
+                selectedCards.append(cardType)
+            }
+        }
+    }
+    
+    private func cardTypeDisplayName(_ cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "距離"
+        case .calories: return "カロリー"
+        case .heartRate: return "平均心拍数"
+        case .pace: return "ペース"
+        case .steps: return "歩数"
+        case .marathon: return "フルマラソン予想"
+        }
+    }
+    
+    private func cardIconName(_ cardType: MetricCardType) -> String {
+        switch cardType {
+        case .distance: return "figure.walk"
+        case .calories: return "flame.fill"
+        case .heartRate: return "heart.fill"
+        case .pace: return "gauge.with.dots.needle.bottom.50percent"
+        case .steps: return "shoeprints.fill"
+        case .marathon: return "trophy.fill"
+        }
+    }
+    
+    private func cardColor(_ cardType: MetricCardType) -> Color {
+        switch cardType {
+        case .distance: return .green
+        case .calories: return .orange
+        case .heartRate: return .red
+        case .pace: return .blue
+        case .steps: return .purple
+        case .marathon: return .yellow
+        }
     }
 }
 

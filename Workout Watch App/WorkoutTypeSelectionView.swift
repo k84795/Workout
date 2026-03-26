@@ -26,21 +26,22 @@ struct WorkoutTypeSelectionView: View {
                     Button {
                         startWorkout(type: workout.type, name: workout.name)
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
                             Image(workout.icon)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 40, height: 40)
+                                .frame(width: 32, height: 32)
                             
                             Text(workout.name)
-                                .font(.headline)
+                                .font(.body)
                                 .foregroundStyle(workout.color)
                             
                             Spacer()
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 2)
                     }
                     .disabled(isStarting)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                 }
             }
             .listStyle(.plain)
