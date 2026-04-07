@@ -31,7 +31,10 @@ class PhoneMusicConnectivityManager: NSObject, ObservableObject {
         
         if let session = session {
             session.delegate = self
-            session.activate()
+            // WCSessionのactivateは非同期で呼ぶべき
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.activate()
+            }
         }
         
         // 音楽プレイヤーの通知を監視

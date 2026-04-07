@@ -28,7 +28,10 @@ class WatchMusicConnectivityManager: NSObject, ObservableObject {
         
         if let session = session {
             session.delegate = self
-            session.activate()
+            // WCSessionのactivateは非同期で呼ぶべき
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.activate()
+            }
         }
         
         // 初期の音楽情報を取得

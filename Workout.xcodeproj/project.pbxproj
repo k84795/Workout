@@ -7,11 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0A61D5902F572FBD00B4E836 /* Workout Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0A61D5902F572FBD00B4E836 /* RUX.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* RUX.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0A8F20362F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
 		0A8F20372F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
 		0A8F20392F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
 		0A8F203A2F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
+		0A8F20412F85506D00DAED68 /* RUX.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* RUX.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +51,13 @@
 			remoteGlobalIDString = 0A61D58E2F572FBD00B4E836;
 			remoteInfo = "Workout Watch App";
 		};
+		0A8F203D2F85470000DAED68 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A61D58E2F572FBD00B4E836;
+			remoteInfo = "Workout Watch App";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -59,19 +67,30 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				0A61D5902F572FBD00B4E836 /* Workout Watch App.app in Embed Watch Content */,
+				0A61D5902F572FBD00B4E836 /* RUX.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A8F20402F854FFE00DAED68 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 8;
+			dstPath = Watch;
+			dstSubfolderSpec = 1;
+			files = (
+				0A8F20412F85506D00DAED68 /* RUX.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0A33B3222F60696F0032A9CF /* Workout ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Workout ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A33B3222F60696F0032A9CF /* RUX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RUX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A33B32E2F6069720032A9CF /* Workout iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A33B3382F6069720032A9CF /* Workout iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D5892F572FBD00B4E836 /* Workout.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Workout.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Workout Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A61D58F2F572FBD00B4E836 /* RUX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RUX.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D59E2F572FBE00B4E836 /* Workout Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D5A82F572FBE00B4E836 /* Workout Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Workout Watch AppInfo.plist"; sourceTree = "<group>"; };
@@ -200,6 +219,7 @@
 				0A61D58A2F572FBD00B4E836 /* Products */,
 				0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */,
 				0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */,
+				0A8F203B2F85470000DAED68 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -207,14 +227,21 @@
 			isa = PBXGroup;
 			children = (
 				0A61D5892F572FBD00B4E836 /* Workout.app */,
-				0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */,
+				0A61D58F2F572FBD00B4E836 /* RUX.app */,
 				0A61D59E2F572FBE00B4E836 /* Workout Watch AppTests.xctest */,
 				0A61D5A82F572FBE00B4E836 /* Workout Watch AppUITests.xctest */,
-				0A33B3222F60696F0032A9CF /* Workout ios.app */,
+				0A33B3222F60696F0032A9CF /* RUX.app */,
 				0A33B32E2F6069720032A9CF /* Workout iosTests.xctest */,
 				0A33B3382F6069720032A9CF /* Workout iosUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0A8F203B2F85470000DAED68 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -227,10 +254,12 @@
 				0A33B31E2F60696F0032A9CF /* Sources */,
 				0A33B31F2F60696F0032A9CF /* Frameworks */,
 				0A33B3202F60696F0032A9CF /* Resources */,
+				0A8F20402F854FFE00DAED68 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0A8F203E2F85470000DAED68 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0A33B3232F60696F0032A9CF /* Workout ios */,
@@ -239,7 +268,7 @@
 			packageProductDependencies = (
 			);
 			productName = "Workout ios";
-			productReference = 0A33B3222F60696F0032A9CF /* Workout ios.app */;
+			productReference = 0A33B3222F60696F0032A9CF /* RUX.app */;
 			productType = "com.apple.product-type.application";
 		};
 		0A33B32D2F6069720032A9CF /* Workout iosTests */ = {
@@ -329,7 +358,7 @@
 			packageProductDependencies = (
 			);
 			productName = "Workout Watch App";
-			productReference = 0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */;
+			productReference = 0A61D58F2F572FBD00B4E836 /* RUX.app */;
 			productType = "com.apple.product-type.application";
 		};
 		0A61D59D2F572FBE00B4E836 /* Workout Watch AppTests */ = {
@@ -567,6 +596,11 @@
 			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
 			targetProxy = 0A61D5A92F572FBE00B4E836 /* PBXContainerItemProxy */;
 		};
+		0A8F203E2F85470000DAED68 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+			targetProxy = 0A8F203D2F85470000DAED68 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -581,7 +615,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_FILE = "Workout Watch AppiOS-Info.plist";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "ワークアウトの記録のためHealthKitにアクセスします";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です";
@@ -597,7 +631,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = RUX;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -620,7 +654,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Workout-ios-Info.plist";
+				INFOPLIST_FILE = "Workout Watch AppiOS-Info.plist";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "ワークアウトの記録のためHealthKitにアクセスします";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です";
@@ -636,7 +670,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = RUX;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -868,6 +902,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Workout Watch AppInfo.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Workout;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
@@ -878,8 +913,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.Workout.watchkitapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios.watchkitapp";
+				PRODUCT_NAME = RUX;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -904,6 +939,7 @@
 				DEVELOPMENT_TEAM = 43TFR2CHXP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Workout Watch AppInfo.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Workout;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
@@ -914,8 +950,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.Workout.watchkitapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios.watchkitapp";
+				PRODUCT_NAME = RUX;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

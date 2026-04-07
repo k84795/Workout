@@ -1190,8 +1190,8 @@ class WorkoutManager: NSObject, ObservableObject {
         let actualDistance = maxDistance
         let distanceSinceLastKm = actualDistance - lastKmDistance
         
-        // 10m ごとにラップを記録（テスト用に大幅短縮）
-        let lapDistance: Double = 10.0
+        // 1km ごとにラップを記録
+        let lapDistance: Double = 1000.0
         
         if distanceSinceLastKm >= lapDistance {
             if let lastTime = lastKmTimestamp {
@@ -1203,15 +1203,12 @@ class WorkoutManager: NSObject, ObservableObject {
                     return
                 }
                 
-                // 10mあたりの実際のペース（テスト用）
+                // 1kmあたりの実際のペース
                 currentPace = timeElapsed
                 
-                // ⚠️ テスト用：ランダムなラップタイムを生成（30秒〜90秒の範囲）
-                let randomLapTime = Double.random(in: 30.0...90.0)
-                
-                // ラップタイムを記録（10mの所要時間）
-                lapTimes.append(randomLapTime)
-                print("🏃 Lap \(lapTimes.count): \(formatLapTime(randomLapTime)) (10m完走, ペース: \(currentPaceString)) [実際:\(formatLapTime(timeElapsed)), ランダム:\(formatLapTime(randomLapTime))]")
+                // ラップタイムを記録（1kmの所要時間）
+                lapTimes.append(timeElapsed)
+                print("🏃 Lap \(lapTimes.count): \(formatLapTime(timeElapsed)) (1km完走, ペース: \(currentPaceString))")
                 print("🏃   Actual distance: \(String(format: "%.2f", actualDistance))m, Display distance: \(String(format: "%.2f", distance))m")
                 
                 // ラップ基準点を更新（実際の距離を使用）
