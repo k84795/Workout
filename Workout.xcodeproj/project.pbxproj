@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		0A61D5902F572FBD00B4E836 /* Workout Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0A8F20362F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
+		0A8F20372F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
+		0A8F20392F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
+		0A8F203A2F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +74,8 @@
 		0A61D58F2F572FBD00B4E836 /* Workout Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Workout Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D59E2F572FBE00B4E836 /* Workout Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A61D5A82F572FBE00B4E836 /* Workout Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Workout Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Workout Watch AppInfo.plist"; sourceTree = "<group>"; };
+		0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Workout Watch AppiOS-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -192,6 +198,8 @@
 				0A33B3312F6069720032A9CF /* Workout iosTests */,
 				0A33B33B2F6069720032A9CF /* Workout iosUITests */,
 				0A61D58A2F572FBD00B4E836 /* Products */,
+				0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */,
+				0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -458,6 +466,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A8F203A2F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */,
+				0A8F20362F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -465,6 +475,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A8F20392F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */,
+				0A8F20372F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
