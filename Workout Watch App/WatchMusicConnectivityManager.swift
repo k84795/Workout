@@ -140,10 +140,16 @@ extension WatchMusicConnectivityManager: WCSessionDelegate {
         } else {
             print("🎵 WCSession activated with state: \(activationState.rawValue)")
             
-            // アクティベーション完了後、音楽情報を取得
             if activationState == .activated {
+                // アクティベーション完了後、音楽情報を取得
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                     self?.requestNowPlayingInfo()
+                }
+
+                // 保留中の履歴同期を処理
+                let context = session.receivedApplicationContext
+                if context["historyRecords"] != nil {
+                    WorkoutHistoryStore.shared.handleRemoteFullState(context)
                 }
             }
         }
@@ -152,12 +158,19 @@ extension WatchMusicConnectivityManager: WCSessionDelegate {
     // iPhoneからのメッセージを受信
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         print("🎵 Received message from iPhone: \(message)")
-        
+
         // 音楽情報の更新
         if message["musicInfo"] != nil {
             DispatchQueue.main.async { [weak self] in
                 self?.updateMusicInfo(from: message)
             }
+        }
+    }
+
+    // iPhoneからのApplicationContext（履歴同期）を受信
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+        if applicationContext["historyRecords"] != nil {
+            WorkoutHistoryStore.shared.handleRemoteFullState(applicationContext)
         }
     }
 }

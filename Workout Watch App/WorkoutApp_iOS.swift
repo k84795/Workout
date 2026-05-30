@@ -64,6 +64,7 @@ struct PhoneWorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     @State private var isStarting = false
     @State private var showError = false
+    @State private var showHistory = false
     
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color, textColor: Color)] = [
         ("ウォーキング", .walking, "walking", .green, .green),
@@ -131,6 +132,17 @@ struct PhoneWorkoutTypeSelectionView: View {
                         .font(.largeTitle)
                         .fontWeight(.bold)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 20))
+                    }
+                }
+            }
+            .sheet(isPresented: $showHistory) {
+                PhoneWorkoutHistoryView()
             }
             .alert("エラー", isPresented: $showError) {
                 Button("OK") {
@@ -570,6 +582,18 @@ struct PhoneWorkoutView: View {
             .opacity(isButtonVisible ? 1.0 : 0.3)
             
             Button {
+                if workoutManager.elapsedTime > 0 {
+                    let record = WorkoutHistoryRecord(
+                        workoutName: workoutManager.workoutName,
+                        elapsedTime: workoutManager.elapsedTime,
+                        distance: workoutManager.distance,
+                        activeCalories: workoutManager.activeCalories,
+                        averageHeartRate: workoutManager.averageHeartRate,
+                        stepCount: workoutManager.stepCount,
+                        lapTimes: workoutManager.lapTimes
+                    )
+                    WorkoutHistoryStore.shared.save(record: record)
+                }
                 Task {
                     await workoutManager.endWorkout()
                 }
@@ -1939,4 +1963,151 @@ struct CardSelectionSheet: View {
         }
     }
 }
+
+struct PhoneWorkoutHistoryView: View {
+    @State private var records: [WorkoutHistoryRecord] = []
+    @State private var recordToDelete: WorkoutHistoryRecord?
+    @State private var showDeleteAlert = false
+    @State private var showDeleteAllAlert = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if records.isEmpty {
+                    ContentUnavailableView(
+                        "履歴はありません",
+                        systemImage: "clock.arrow.circlepath",
+                        description: Text("ワークアウトを完了すると\nここに履歴が表示されます")
+                    )
+                } else {
+                    List {
+                        ForEach(records) { record in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(record.workoutName)
+                                        .font(.headline)
+                                    Spacer()
+                                    Text(formatDate(record.date))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                HStack(spacing: 16) {
+                                    Label(String(format: "%.2fkm", record.distance / 1000), systemImage: "figure.run")
+                                        .foregroundStyle(.blue)
+                                    Label(formatTime(record.elapsedTime), systemImage: "timer")
+                                        .foregroundStyle(.green)
+                                }
+                                .font(.subheadline)
+
+                                HStack(spacing: 16) {
+                                    Label(String(format: "%.0fkcal", record.activeCalories), systemImage: "flame.fill")
+                                        .foregroundStyle(.orange)
+                                    if record.averageHeartRate > 0 {
+                                        Label(String(format: "%.0fbpm", record.averageHeartRate), systemImage: "heart.fill")
+                                            .foregroundStyle(.red)
+                                    }
+                                    if record.stepCount > 0 {
+                                        Label(String(format: "%.0f歩", record.stepCount), systemImage: "figure.walk")
+                                            .foregroundStyle(.purple)
+                                    }
+                                }
+                                .font(.caption)
+
+                                if !record.lapTimes.isEmpty {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "clock.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.cyan)
+                                        Text("ラップ: \(record.lapTimes.count)km")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 4)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    recordToDelete = record
+                                    showDeleteAlert = true
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                            }
+                        }
+
+                        Section {
+                            Button(role: .destructive) {
+                                showDeleteAllAlert = true
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    Label("全ての履歴を削除", systemImage: "trash")
+                                        .font(.headline)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle("ワークアウト履歴")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("この履歴を消しますか？", isPresented: $showDeleteAlert) {
+                Button("OK", role: .destructive) {
+                    if let record = recordToDelete {
+                        withAnimation {
+                            WorkoutHistoryStore.shared.delete(recordID: record.id)
+                            records = WorkoutHistoryStore.shared.loadRecords()
+                        }
+                        recordToDelete = nil
+                    }
+                }
+                Button("キャンセル", role: .cancel) {
+                    recordToDelete = nil
+                }
+            }
+            .alert("全ての履歴を消しますか？", isPresented: $showDeleteAllAlert) {
+                Button("OK", role: .destructive) {
+                    withAnimation {
+                        WorkoutHistoryStore.shared.deleteAll()
+                        records = []
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            }
+        }
+        .onAppear {
+            records = WorkoutHistoryStore.shared.loadRecords()
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = (Int(time) % 3600) / 60
+        let seconds = Int(time) % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
 

@@ -7,11 +7,18 @@
 
 import SwiftUI
 import HealthKit
+import WatchConnectivity
 
 @main
 struct RUX_Watch_AppApp: App {
     @StateObject private var workoutManager = WorkoutManager()
-    
+
+    init() {
+        if WCSession.isSupported() {
+            _ = WatchMusicConnectivityManager.shared
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

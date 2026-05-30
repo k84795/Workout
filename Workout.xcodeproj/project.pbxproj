@@ -101,6 +101,7 @@
 			membershipExceptions = (
 				PhoneMusicConnectivityManager.swift,
 				WorkoutApp_iOS.swift,
+				WorkoutHistoryRecord.swift,
 				WorkoutManager.swift,
 			);
 			platformFiltersByRelativePath = {

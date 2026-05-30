@@ -12,6 +12,7 @@ struct WorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     @State private var isStarting = false
     @State private var showError = false
+    @State private var showHistory = false
     
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color)] = [
         ("ウォーキング", .walking, "walking", .green),
@@ -20,31 +21,45 @@ struct WorkoutTypeSelectionView: View {
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            List {
-                ForEach(workoutTypes, id: \.name) { workout in
-                    Button {
-                        startWorkout(type: workout.type, name: workout.name)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(workout.icon)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 32, height: 32)
-                            
-                            Text(workout.name)
-                                .font(.body)
-                                .foregroundStyle(workout.color)
-                            
-                            Spacer()
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
+                List {
+                    ForEach(workoutTypes, id: \.name) { workout in
+                        Button {
+                            startWorkout(type: workout.type, name: workout.name)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(workout.icon)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 32, height: 32)
+
+                                Text(workout.name)
+                                    .font(.body)
+                                    .foregroundStyle(workout.color)
+
+                                Spacer()
+                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                        .disabled(isStarting)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                     }
-                    .disabled(isStarting)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                }
+                .listStyle(.plain)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
                 }
             }
-            .listStyle(.plain)
+            .sheet(isPresented: $showHistory) {
+                WatchWorkoutHistoryView()
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK") {
@@ -112,6 +127,147 @@ struct WorkoutTypeSelectionView: View {
             isStarting = false
             print("🟢 isStarting reset to false")
         }
+    }
+}
+
+struct WatchWorkoutHistoryView: View {
+    @State private var records: [WorkoutHistoryRecord] = []
+    @State private var recordToDelete: WorkoutHistoryRecord?
+    @State private var showDeleteAlert = false
+    @State private var showDeleteAllAlert = false
+
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        return screenWidth / 162.0
+    }
+
+    var body: some View {
+        Group {
+            if records.isEmpty {
+                VStack {
+                    Spacer()
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 30))
+                        .foregroundStyle(.secondary)
+                    Text("履歴はありません")
+                        .font(.system(size: 14 * sizeScale))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    Spacer()
+                }
+            } else {
+                List {
+                    ForEach(records) { record in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text(record.workoutName)
+                                    .font(.system(size: 13 * sizeScale, weight: .bold))
+                                Spacer()
+                                Text(formatDate(record.date))
+                                    .font(.system(size: 10 * sizeScale))
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "figure.run")
+                                        .font(.system(size: 9 * sizeScale))
+                                    Text(String(format: "%.2fkm", record.distance / 1000))
+                                        .font(.system(size: 12 * sizeScale, design: .rounded))
+                                }
+                                .foregroundStyle(.blue)
+                                Spacer()
+                                HStack(spacing: 2) {
+                                    Image(systemName: "timer")
+                                        .font(.system(size: 9 * sizeScale))
+                                    Text(formatTime(record.elapsedTime))
+                                        .font(.system(size: 12 * sizeScale, design: .rounded))
+                                }
+                                .foregroundStyle(.green)
+                            }
+                            HStack {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "flame.fill")
+                                        .font(.system(size: 9 * sizeScale))
+                                    Text(String(format: "%.0fkcal", record.activeCalories))
+                                        .font(.system(size: 11 * sizeScale))
+                                }
+                                .foregroundStyle(.orange)
+                                Spacer()
+                                if record.averageHeartRate > 0 {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 9 * sizeScale))
+                                        Text(String(format: "%.0fbpm", record.averageHeartRate))
+                                            .font(.system(size: 11 * sizeScale))
+                                    }
+                                    .foregroundStyle(.red)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                recordToDelete = record
+                                showDeleteAlert = true
+                            } label: {
+                                Image(systemName: "xmark")
+                            }
+                        }
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteAllAlert = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("全ての履歴を削除")
+                                .font(.system(size: 13 * sizeScale, weight: .semibold))
+                            Spacer()
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .navigationTitle("履歴")
+        .onAppear {
+            records = WorkoutHistoryStore.shared.loadRecords()
+        }
+        .alert("この履歴を消しますか？", isPresented: $showDeleteAlert) {
+            Button("OK", role: .destructive) {
+                if let record = recordToDelete {
+                    WorkoutHistoryStore.shared.delete(recordID: record.id)
+                    records = WorkoutHistoryStore.shared.loadRecords()
+                    recordToDelete = nil
+                }
+            }
+            Button("キャンセル", role: .cancel) {
+                recordToDelete = nil
+            }
+        }
+        .alert("全ての履歴を消しますか？", isPresented: $showDeleteAllAlert) {
+            Button("OK", role: .destructive) {
+                WorkoutHistoryStore.shared.deleteAll()
+                records = []
+            }
+            Button("キャンセル", role: .cancel) {}
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let hours = Int(time) / 3600
+        let minutes = (Int(time) % 3600) / 60
+        let seconds = Int(time) % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

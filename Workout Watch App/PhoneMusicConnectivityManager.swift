@@ -196,6 +196,13 @@ extension PhoneMusicConnectivityManager: WCSessionDelegate {
             print("🎵 WCSession activation failed: \(error.localizedDescription)")
         } else {
             print("🎵 WCSession activated with state: \(activationState.rawValue)")
+
+            if activationState == .activated {
+                let context = session.receivedApplicationContext
+                if context["historyRecords"] != nil {
+                    WorkoutHistoryStore.shared.handleRemoteFullState(context)
+                }
+            }
         }
     }
     
@@ -244,6 +251,13 @@ extension PhoneMusicConnectivityManager: WCSessionDelegate {
         default:
             print("🎵 Unknown command: \(command)")
             replyHandler([:])
+        }
+    }
+
+    // WatchからのApplicationContext（履歴同期）を受信
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+        if applicationContext["historyRecords"] != nil {
+            WorkoutHistoryStore.shared.handleRemoteFullState(applicationContext)
         }
     }
 }

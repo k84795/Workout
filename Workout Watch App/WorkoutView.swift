@@ -621,6 +621,20 @@ struct WorkoutView: View {
     }
     
     private func endWorkout() {
+        // ワークアウト履歴を保存（メトリクスがリセットされる前に）
+        if workoutManager.elapsedTime > 0 {
+            let record = WorkoutHistoryRecord(
+                workoutName: workoutManager.workoutName,
+                elapsedTime: workoutManager.elapsedTime,
+                distance: workoutManager.distance,
+                activeCalories: workoutManager.activeCalories,
+                averageHeartRate: workoutManager.averageHeartRate,
+                stepCount: workoutManager.stepCount,
+                lapTimes: workoutManager.lapTimes
+            )
+            WorkoutHistoryStore.shared.save(record: record)
+        }
+
         // 点滅タイマーを即座に停止
         stopBlinking()
         
