@@ -4,7 +4,9 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleExecutable</key>
+    <key>CFBundleDisplayName</key>
+    <string>RUX</string>
+    <key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
@@ -21,7 +23,7 @@
 	<key>WKApplication</key>
 	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>
-	<string>com.yuki.Workout-ios</string>
+	<string>com.yuki.RUX</string>
 	<key>WKWatchOnly</key>
 	<false/>
 	<key>UIBackgroundModes</key>

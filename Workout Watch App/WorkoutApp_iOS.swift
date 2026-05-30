@@ -1261,10 +1261,7 @@ class PhoneMusicController: ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.updatePlaybackState()
-            }
+            self?.updatePlaybackState()
         }
         
         NotificationCenter.default.addObserver(
@@ -1272,10 +1269,7 @@ class PhoneMusicController: ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
-            }
+            self?.updateNowPlayingInfo()
         }
         
         musicPlayer.beginGeneratingPlaybackNotifications()
@@ -1290,36 +1284,28 @@ class PhoneMusicController: ObservableObject {
         remoteCommandCenter.playCommand.isEnabled = true
         remoteCommandCenter.playCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.musicPlayer.play()
-            }
+            self.musicPlayer.play()
             return .success
         }
         
         remoteCommandCenter.pauseCommand.isEnabled = true
         remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.musicPlayer.pause()
-            }
+            self.musicPlayer.pause()
             return .success
         }
         
         remoteCommandCenter.nextTrackCommand.isEnabled = true
         remoteCommandCenter.nextTrackCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.musicPlayer.skipToNextItem()
-            }
+            self.musicPlayer.skipToNextItem()
             return .success
         }
         
         remoteCommandCenter.previousTrackCommand.isEnabled = true
         remoteCommandCenter.previousTrackCommand.addTarget { [weak self] _ in
             guard let self = self else { return .commandFailed }
-            Task { @MainActor [weak self] in
-                self?.musicPlayer.skipToPreviousItem()
-            }
+            self.musicPlayer.skipToPreviousItem()
             return .success
         }
     }
@@ -1329,11 +1315,8 @@ class PhoneMusicController: ObservableObject {
         updatePlaybackState()
         
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor [weak self] in
-                self?.updateNowPlayingInfo()
-                self?.updatePlaybackState()
-            }
+            self?.updateNowPlayingInfo()
+            self?.updatePlaybackState()
         }
     }
     
@@ -1574,7 +1557,8 @@ struct SongPickerView: View {
                                 
                                 Spacer()
                                 
-                                if let duration = item.playbackDuration as? TimeInterval, duration > 0 {
+                                let duration = item.playbackDuration
+                                if duration > 0 {
                                     Text(formatDuration(duration))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)

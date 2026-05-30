@@ -35,6 +35,20 @@
                ReferencedContainer = "container:Workout.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "0A61D5882F572FBC00B4E836"
+               BuildableName = "Workout.app"
+               BlueprintName = "Workout"
+               ReferencedContainer = "container:Workout.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -43,30 +57,6 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
-      <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0A33B32D2F6069720032A9CF"
-               BuildableName = "Workout iosTests.xctest"
-               BlueprintName = "Workout iosTests"
-               ReferencedContainer = "container:Workout.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0A33B3372F6069720032A9CF"
-               BuildableName = "Workout iosUITests.xctest"
-               BlueprintName = "Workout iosUITests"
-               ReferencedContainer = "container:Workout.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -83,9 +73,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "0A33B3212F60696F0032A9CF"
+            BlueprintIdentifier = "0A61D58E2F572FBD00B4E836"
             BuildableName = "RUX.app"
-            BlueprintName = "Workout ios"
+            BlueprintName = "RUX &#x200b;Watch &#x200b;App"
             ReferencedContainer = "container:Workout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -100,9 +90,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "0A33B3212F60696F0032A9CF"
+            BlueprintIdentifier = "0A61D58E2F572FBD00B4E836"
             BuildableName = "RUX.app"
-            BlueprintName = "Workout ios"
+            BlueprintName = "RUX &#x200b;Watch &#x200b;App"
             ReferencedContainer = "container:Workout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -7,12 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A39BAAB2F8B660000F1E6AF /* RUX.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* RUX.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0A61D5902F572FBD00B4E836 /* RUX.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* RUX.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0A8F20362F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
-		0A8F20372F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20352F84B2EA00DAED68 /* Workout Watch AppInfo.plist */; };
-		0A8F20392F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
 		0A8F203A2F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 0A8F20382F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist */; };
-		0A8F20412F85506D00DAED68 /* RUX.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0A61D58F2F572FBD00B4E836 /* RUX.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,6 +27,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 0A33B3212F60696F0032A9CF;
 			remoteInfo = "Workout ios";
+		};
+		0A39BA9F2F8A406E00F1E6AF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A61D58E2F572FBD00B4E836;
+			remoteInfo = "RUX ​Watch ​App";
 		};
 		0A61D5912F572FBD00B4E836 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -51,13 +56,6 @@
 			remoteGlobalIDString = 0A61D58E2F572FBD00B4E836;
 			remoteInfo = "Workout Watch App";
 		};
-		0A8F203D2F85470000DAED68 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 0A61D5832F572FBC00B4E836 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 0A61D58E2F572FBD00B4E836;
-			remoteInfo = "Workout Watch App";
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -74,14 +72,14 @@
 		};
 		0A8F20402F854FFE00DAED68 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 8;
-			dstPath = Watch;
-			dstSubfolderSpec = 1;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
 			files = (
-				0A8F20412F85506D00DAED68 /* RUX.app in Embed Watch Content */,
+				0A39BAAB2F8B660000F1E6AF /* RUX.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -110,7 +108,7 @@
 			};
 			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
 		};
-		0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "Workout Watch App" target */ = {
+		0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "RUX ​Watch ​App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				PhoneMusicConnectivityManager.swift,
@@ -119,7 +117,7 @@
 			platformFiltersByRelativePath = {
 				WorkoutApp.swift = (watchos, );
 			};
-			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+			target = 0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -142,7 +140,7 @@
 		0A61D5932F572FBD00B4E836 /* Workout Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "Workout Watch App" target */,
+				0A33B34D2F606C3F0032A9CF /* Exceptions for "Workout Watch App" folder in "RUX ​Watch ​App" target */,
 				0A33B34A2F6069C50032A9CF /* Exceptions for "Workout Watch App" folder in "Workout ios" target */,
 			);
 			path = "Workout Watch App";
@@ -259,7 +257,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				0A8F203E2F85470000DAED68 /* PBXTargetDependency */,
+				0A39BAA02F8A406E00F1E6AF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0A33B3232F60696F0032A9CF /* Workout ios */,
@@ -339,9 +337,9 @@
 			productReference = 0A61D5892F572FBD00B4E836 /* Workout.app */;
 			productType = "com.apple.product-type.application.watchapp2-container";
 		};
-		0A61D58E2F572FBD00B4E836 /* Workout Watch App */ = {
+		0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0A61D5B22F572FBE00B4E836 /* Build configuration list for PBXNativeTarget "Workout Watch App" */;
+			buildConfigurationList = 0A61D5B22F572FBE00B4E836 /* Build configuration list for PBXNativeTarget "RUX ​Watch ​App" */;
 			buildPhases = (
 				0A61D58B2F572FBD00B4E836 /* Sources */,
 				0A61D58C2F572FBD00B4E836 /* Frameworks */,
@@ -354,7 +352,7 @@
 			fileSystemSynchronizedGroups = (
 				0A61D5932F572FBD00B4E836 /* Workout Watch App */,
 			);
-			name = "Workout Watch App";
+			name = "RUX ​Watch ​App";
 			packageProductDependencies = (
 			);
 			productName = "Workout Watch App";
@@ -459,7 +457,7 @@
 			projectRoot = "";
 			targets = (
 				0A61D5882F572FBC00B4E836 /* Workout */,
-				0A61D58E2F572FBD00B4E836 /* Workout Watch App */,
+				0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */,
 				0A61D59D2F572FBE00B4E836 /* Workout Watch AppTests */,
 				0A61D5A72F572FBE00B4E836 /* Workout Watch AppUITests */,
 				0A33B3212F60696F0032A9CF /* Workout ios */,
@@ -504,8 +502,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0A8F20392F84B2F200DAED68 /* Workout Watch AppiOS-Info.plist in Resources */,
-				0A8F20372F84B2EA00DAED68 /* Workout Watch AppInfo.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -581,25 +577,25 @@
 			target = 0A33B3212F60696F0032A9CF /* Workout ios */;
 			targetProxy = 0A33B3392F6069720032A9CF /* PBXContainerItemProxy */;
 		};
+		0A39BAA02F8A406E00F1E6AF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */;
+			targetProxy = 0A39BA9F2F8A406E00F1E6AF /* PBXContainerItemProxy */;
+		};
 		0A61D5922F572FBD00B4E836 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+			target = 0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */;
 			targetProxy = 0A61D5912F572FBD00B4E836 /* PBXContainerItemProxy */;
 		};
 		0A61D5A02F572FBE00B4E836 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+			target = 0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */;
 			targetProxy = 0A61D59F2F572FBE00B4E836 /* PBXContainerItemProxy */;
 		};
 		0A61D5AA2F572FBE00B4E836 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
+			target = 0A61D58E2F572FBD00B4E836 /* RUX ​Watch ​App */;
 			targetProxy = 0A61D5A92F572FBE00B4E836 /* PBXContainerItemProxy */;
-		};
-		0A8F203E2F85470000DAED68 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 0A61D58E2F572FBD00B4E836 /* Workout Watch App */;
-			targetProxy = 0A8F203D2F85470000DAED68 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -616,12 +612,12 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout Watch AppiOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "ワークアウト中に音楽を再生するために、Apple Musicへのアクセスが必要です。";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "ワークアウトの記録のためHealthKitにアクセスします";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -630,7 +626,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.RUX;
 				PRODUCT_NAME = RUX;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -655,12 +651,12 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout Watch AppiOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "ワークアウト中に音楽を再生するために、Apple Musicへのアクセスが必要です。";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "ワークアウトの記録のためHealthKitにアクセスします";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
@@ -669,7 +665,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.RUX;
 				PRODUCT_NAME = RUX;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -903,17 +899,18 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout Watch AppInfo.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = Workout;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.yuki.RUX;
+				INFOPLIST_KEY_WKWatchOnly = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios.watchkitapp";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.RUX.watchkitapp;
 				PRODUCT_NAME = RUX;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -940,17 +937,18 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Workout Watch AppInfo.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = Workout;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウト中の心拍数、距離、カロリーなどのデータを記録するために使用します。";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータをヘルスケアに保存するために使用します。";
+				INFOPLIST_KEY_CFBundleDisplayName = RUX;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.yuki.RUX;
+				INFOPLIST_KEY_WKWatchOnly = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yuki.Workout-ios.watchkitapp";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuki.RUX.watchkitapp;
 				PRODUCT_NAME = RUX;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -1134,7 +1132,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0A61D5B22F572FBE00B4E836 /* Build configuration list for PBXNativeTarget "Workout Watch App" */ = {
+		0A61D5B22F572FBE00B4E836 /* Build configuration list for PBXNativeTarget "RUX ​Watch ​App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0A61D5B32F572FBE00B4E836 /* Debug */,

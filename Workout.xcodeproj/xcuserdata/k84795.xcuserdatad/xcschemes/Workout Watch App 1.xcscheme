@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0A61D58E2F572FBD00B4E836"
-               BuildableName = "Workout Watch App.app"
-               BlueprintName = "Workout Watch App"
+               BuildableName = "RUX.app"
+               BlueprintName = "RUX &#x200b;Watch &#x200b;App"
                ReferencedContainer = "container:Workout.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -59,8 +59,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0A61D58E2F572FBD00B4E836"
-            BuildableName = "Workout Watch App.app"
-            BlueprintName = "Workout Watch App"
+            BuildableName = "RUX.app"
+            BlueprintName = "RUX &#x200b;Watch &#x200b;App"
             ReferencedContainer = "container:Workout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -76,8 +76,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0A61D58E2F572FBD00B4E836"
-            BuildableName = "Workout Watch App.app"
-            BlueprintName = "Workout Watch App"
+            BuildableName = "RUX.app"
+            BlueprintName = "RUX &#x200b;Watch &#x200b;App"
             ReferencedContainer = "container:Workout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  Workout Watch App
+//  RUX Watch App
 //
 //  Created by 山中雄樹 on 2026/03/04.
 //
