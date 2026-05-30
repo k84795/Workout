@@ -582,7 +582,7 @@ struct PhoneWorkoutView: View {
             .opacity(isButtonVisible ? 1.0 : 0.3)
             
             Button {
-                if workoutManager.elapsedTime > 0 {
+                if workoutManager.elapsedTime >= 10 {
                     let record = WorkoutHistoryRecord(
                         workoutName: workoutManager.workoutName,
                         elapsedTime: workoutManager.elapsedTime,
@@ -590,7 +590,8 @@ struct PhoneWorkoutView: View {
                         activeCalories: workoutManager.activeCalories,
                         averageHeartRate: workoutManager.averageHeartRate,
                         stepCount: workoutManager.stepCount,
-                        lapTimes: workoutManager.lapTimes
+                        lapTimes: workoutManager.lapTimes,
+                        deviceSource: "phone"
                     )
                     WorkoutHistoryStore.shared.save(record: record)
                 }
@@ -1983,57 +1984,67 @@ struct PhoneWorkoutHistoryView: View {
                 } else {
                     List {
                         ForEach(records) { record in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text(record.workoutName)
-                                        .font(.headline)
-                                    Spacer()
+                            Section {
+                                VStack(alignment: .leading, spacing: 8) {
                                     Text(formatDate(record.date))
-                                        .font(.subheadline)
+                                        .font(.system(size: 18, weight: .semibold))
                                         .foregroundStyle(.secondary)
-                                }
-
-                                HStack(spacing: 16) {
-                                    Label(String(format: "%.2fkm", record.distance / 1000), systemImage: "figure.run")
-                                        .foregroundStyle(.blue)
-                                    Label(formatTime(record.elapsedTime), systemImage: "timer")
-                                        .foregroundStyle(.green)
-                                }
-                                .font(.subheadline)
-
-                                HStack(spacing: 16) {
-                                    Label(String(format: "%.0fkcal", record.activeCalories), systemImage: "flame.fill")
-                                        .foregroundStyle(.orange)
-                                    if record.averageHeartRate > 0 {
-                                        Label(String(format: "%.0fbpm", record.averageHeartRate), systemImage: "heart.fill")
-                                            .foregroundStyle(.red)
+                                    HStack(spacing: 6) {
+                                        Image(workoutIcon(for: record.workoutName))
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 32, height: 32)
+                                        Text(record.workoutName)
+                                            .font(.system(size: 32, weight: .bold))
+                                            .foregroundStyle(workoutColor(for: record.workoutName))
+                                            .fixedSize(horizontal: true, vertical: false)
+                                        Text(record.deviceEmoji)
+                                            .font(.system(size: 32))
+                                            .fixedSize(horizontal: true, vertical: false)
                                     }
-                                    if record.stepCount > 0 {
-                                        Label(String(format: "%.0f歩", record.stepCount), systemImage: "figure.walk")
-                                            .foregroundStyle(.purple)
-                                    }
-                                }
-                                .font(.caption)
+                                    .lineLimit(1)
 
-                                if !record.lapTimes.isEmpty {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "clock.fill")
-                                            .font(.caption2)
-                                            .foregroundStyle(.cyan)
-                                        Text("ラップ: \(record.lapTimes.count)km")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                    HStack(spacing: 16) {
+                                        Label(String(format: "%.2fkm", record.distance / 1000), systemImage: "figure.run")
+                                            .foregroundStyle(.blue)
+                                        Label(formatTime(record.elapsedTime), systemImage: "timer")
+                                            .foregroundStyle(.green)
+                                    }
+                                    .font(.subheadline)
+
+                                    HStack(spacing: 16) {
+                                        Label(String(format: "%.0fkcal", record.activeCalories), systemImage: "flame.fill")
+                                            .foregroundStyle(.orange)
+                                        if record.averageHeartRate > 0 {
+                                            Label(String(format: "%.0fbpm", record.averageHeartRate), systemImage: "heart.fill")
+                                                .foregroundStyle(.red)
+                                        }
+                                        if record.stepCount > 0 {
+                                            Label(String(format: "%.0f歩", record.stepCount), systemImage: "figure.walk")
+                                                .foregroundStyle(.purple)
+                                        }
+                                    }
+                                    .font(.caption)
+
+                                    if !record.lapTimes.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "clock.fill")
+                                                .font(.caption2)
+                                                .foregroundStyle(.cyan)
+                                            Text("ラップ: \(record.lapTimes.count)km")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                 }
-                            }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 4)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    recordToDelete = record
-                                    showDeleteAlert = true
-                                } label: {
-                                    Image(systemName: "xmark")
+                                .padding(.vertical, 4)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        recordToDelete = record
+                                        showDeleteAlert = true
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                    }
                                 }
                             }
                         }
@@ -2053,6 +2064,7 @@ struct PhoneWorkoutHistoryView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .listSectionSpacing(10)
                 }
             }
             .navigationTitle("ワークアウト履歴")
@@ -2089,6 +2101,24 @@ struct PhoneWorkoutHistoryView: View {
         }
         .onAppear {
             records = WorkoutHistoryStore.shared.loadRecords()
+        }
+    }
+
+    private func workoutColor(for name: String) -> Color {
+        switch name {
+        case "ウォーキング": return .green
+        case "ジョギング": return .blue
+        case "ランニング": return .red
+        default: return .primary
+        }
+    }
+
+    private func workoutIcon(for name: String) -> String {
+        switch name {
+        case "ウォーキング": return "walking"
+        case "ジョギング": return "jogging"
+        case "ランニング": return "running"
+        default: return "running"
         }
     }
 

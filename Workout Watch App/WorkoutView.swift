@@ -10,17 +10,13 @@ import SwiftUI
 struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @State private var currentPage = 0
-    @State private var scrollViewID = UUID()
-    @State private var shouldScrollToTop = false
     @State private var isTogglingPause = false
     
     // タイマーベースの点滅制御
     @State private var blinkTimer: Timer?
     @State private var isButtonVisible = true
     
-    // スリープ解除検知用
     @Environment(\.scenePhase) private var scenePhase
-    @State private var shouldResetScroll = false
     
     // 画面サイズに応じたスケール係数
     private var sizeScale: CGFloat {
@@ -58,433 +54,134 @@ struct WorkoutView: View {
             }
         }
         .onChange(of: currentPage) { oldValue, newValue in
-            print("📱 Page changed from \(oldValue) to \(newValue)")
-            
-            // ページが切り替わったときに一時停止中なら点滅を再開
             if workoutManager.isPaused {
-                // 少し遅延させてからアニメーションを再開（TabViewのアニメーション後）
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     startBlinking()
                 }
             }
-            
-            // 左画面(0)または右画面(2)からメイン画面(1)に戻った時、スクロールを一番上にリセット
-            // ただし、一時停止中（再生ボタン表示中）はスクロールをリセットしない
-            if newValue == 1 && (oldValue == 0 || oldValue == 2) {
-                if !workoutManager.isPaused {
-                    print("📱 Returned to main view from side page, resetting scroll position")
-                    shouldScrollToTop = true
-                } else {
-                    print("📱 Returned to main view but paused, keeping scroll position")
-                }
-            }
         }
         .onAppear {
-            // 初期表示はメイン画面
             currentPage = 1
-            // 状態を初期化
-            shouldScrollToTop = false
-            shouldResetScroll = false
             isTogglingPause = false
             isButtonVisible = true
-            // 既に一時停止状態なら点滅を開始
             if workoutManager.isPaused {
                 startBlinking()
             }
-            print("✅ WorkoutView: onAppear - states initialized")
         }
         .onDisappear {
-            // ビューが消えたらタイマーをクリーンアップ
             stopBlinking()
-            // 状態をクリーンアップ
-            shouldScrollToTop = false
-            shouldResetScroll = false
             isTogglingPause = false
-            print("✅ WorkoutView: onDisappear - cleaned up")
-        }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            // スリープ解除時（バックグラウンド→アクティブ、非アクティブ→アクティブ）
-            if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
-                print("🌟 Scene became active (woke up), resetting scroll positions")
-                // どの画面にいてもスクロールをリセット（メイン画面のスクロール状態を更新）
-                shouldResetScroll = true
-            }
         }
     }
     
+    private func calculateMarathonPrediction() -> String {
+        let marathonDistance = 42195.0
+        let currentDistance = workoutManager.distance
+        let elapsedTime = workoutManager.elapsedTime
+
+        guard currentDistance > 0 && elapsedTime > 0 else { return "--:--:--" }
+
+        let estimatedTotal = marathonDistance * (elapsedTime / currentDistance)
+        let hours = Int(estimatedTotal / 3600)
+        let minutes = Int(estimatedTotal.truncatingRemainder(dividingBy: 3600) / 60)
+        let seconds = Int(estimatedTotal.truncatingRemainder(dividingBy: 60))
+        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    }
+
     // メイン画面
     private var mainWorkoutView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    // スクロール位置の起点
-                    Color.clear
-                        .frame(height: 0)
-                        .id("top")
-                    
-                    // ヘッダー - コンパクト化（時計と同じ高さ）
-                    HStack {
-                        Spacer()
-                            .frame(width: 15)
-                        Text(workoutManager.workoutName)
-                            .font(.system(size: 11 * sizeScale))
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 4)
-                    .padding(.top, 6)
-                    
-                    // 主要メトリクス - 距離とペースを大きく表示
-                    VStack(spacing: 1) {
-                        // 距離と経過時間
-                        HStack(spacing: 1) {
-                            // 距離
-                            VStack(spacing: 0) {
-                                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                                    Text(String(format: "%.2f", workoutManager.distance / 1000))
-                                        .font(.system(size: 24 * sizeScale, weight: .bold, design: .rounded))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.5)
-                                    Text("km")
-                                        .font(.system(size: 17 * sizeScale))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.5)
-                                }
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                                
-                                Spacer(minLength: 0)
-                                
-                                HStack(spacing: 2) {
-                                    Image(systemName: "figure.run")
-                                        .font(.system(size: 10 * sizeScale))
-                                    Text("距離")
-                                        .font(.system(size: 12 * sizeScale))
-                                }
-                                .foregroundStyle(.blue)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            
-                            // 経過時間
-                            VStack(spacing: 2) {
-                                Text(workoutManager.elapsedTimeString)
-                                    .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                
-                                HStack(spacing: 2) {
-                                    Image(systemName: "timer")
-                                        .font(.system(size: 10 * sizeScale))
-                                    Text("時間")
-                                        .font(.system(size: 12 * sizeScale))
-                                }
-                                .foregroundStyle(.green)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 2)
-                            .background(Color.green.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                        
-                        // ペースとカロリー
-                        HStack(spacing: 1) {
-                            // ペース
-                            VStack(spacing: 0) {
-                                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                                    Text(workoutManager.currentPaceString)
-                                        .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.5)
-                                    Text("min/km")
-                                        .font(.system(size: 15 * sizeScale))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.5)
-                                }
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                                
-                                Spacer()
-                                
-                                HStack(spacing: 2) {
-                                    Image(systemName: "speedometer")
-                                        .font(.system(size: 10 * sizeScale))
-                                    Text("ペース")
-                                        .font(.system(size: 12 * sizeScale))
-                                }
-                                .foregroundStyle(.orange)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            
-                            // カロリー
-                            VStack(spacing: 2) {
-                                Text(String(format: "%.0f", workoutManager.activeCalories))
-                                    .font(.system(size: 16 * sizeScale, weight: .bold, design: .rounded))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                
-                                HStack(spacing: 2) {
-                                    Image(systemName: "flame.fill")
-                                        .font(.system(size: 10 * sizeScale))
-                                    Text("kcal")
-                                        .font(.system(size: 12 * sizeScale))
-                                }
-                                .foregroundStyle(.red)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 2)
-                            .padding(.horizontal, 2)
-                            .background(Color.red.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                    }
-                    
-                    // ラップタイム表示セクション
-                    if !workoutManager.lapTimes.isEmpty {
-                        lapTimesView
-                            .padding(.top, 0)
-                            .padding(.bottom, 4)
-                    }
-                    
-                    // コントロールボタン
-                    VStack(spacing: 8) {
-                        // 一時停止/再開ボタン
-                        Button {
-                            guard !isTogglingPause else {
-                                print("⚠️ Already toggling pause, ignoring tap")
-                                return
-                            }
-                            
-                            let wasPaused = workoutManager.isPaused
-                            togglePause()
-                            
-                            // 一時停止時：その画面に留まる（何もしない）
-                            // 再開時：スクロールを一番上に戻す
-                            if wasPaused == true {
-                                // 再開した直後、スクロールを一番上に
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    withAnimation {
-                                        proxy.scrollTo("top", anchor: .top)
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: workoutManager.isPaused ? "play.fill" : "pause.fill")
-                                    .font(.system(size: 18 * sizeScale))
-                                Text(workoutManager.isPaused ? "再開" : "一時停止")
-                                    .font(.system(size: 17 * sizeScale, weight: .semibold))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(workoutManager.isPaused ? .green : .orange)
-                        .opacity(isTogglingPause ? 0.5 : (workoutManager.isPaused && !isButtonVisible ? 0.4 : 1.0))
-                        .animation(.easeInOut(duration: 0.2), value: isButtonVisible)
-                        
-                        // ワークアウト終了ボタン
-                        Button {
-                            endWorkout()
-                        } label: {
-                            Text("ワークアウトを終了")
-                                .font(.system(size: 25 * sizeScale, weight: .semibold))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.5)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.red)
-                    }
-                    .padding(.top, 8)
-                }
-                .padding(.horizontal, 4)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
-            }
-            .ignoresSafeArea(edges: [.top, .bottom])
-            .id(scrollViewID)
-            .onChange(of: shouldScrollToTop) { _, newValue in
-                // 左画面または右画面から戻った時、またはコントロール画面から再開された時にスクロールを一番上に戻す
-                if newValue {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        withAnimation(.easeOut(duration: 0.3)) {
-                            proxy.scrollTo("top", anchor: .top)
-                        }
-                        shouldScrollToTop = false
-                        print("✅ Scroll reset to top completed")
-                    }
-                }
-            }
-            .onChange(of: shouldResetScroll) { _, newValue in
-                // スリープ解除時にスクロールを一番上にリセット
-                if newValue {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        withAnimation {
-                            proxy.scrollTo("top", anchor: .top)
-                        }
-                        shouldResetScroll = false
-                    }
-                }
-            }
-        }
-    }
-    
-    // ラップタイム表示ビュー
-    private var lapTimesView: some View {
-        VStack(spacing: 0) {
-            // ヘッダー
-            HStack(spacing: 0) {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 9 * sizeScale))
-                    .foregroundStyle(.cyan)
-                Text("ラップタイム")
-                    .font(.system(size: 10 * sizeScale))
-                    .fontWeight(.semibold)
+        GeometryReader { geometry in
+            let cellSpacing: CGFloat = 2
+            let horizontalPadding: CGFloat = 4
+            let availableWidth = geometry.size.width - horizontalPadding * 2
+            let cellWidth = (availableWidth - cellSpacing) / 2
+
+            VStack(spacing: 0) {
+                // ワークアウトタイトル
+                Text(workoutManager.workoutName)
+                    .font(.system(size: 13 * sizeScale, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                
-                Spacer()
-                    .frame(width: 4)
-                
-                // 新記録表示
-                if let bestLap = getBestLapInfo() {
-                    Text("新 \(bestLap.lapNumber)Km/\(formatLapTime(bestLap.lapTime))")
-                        .font(.system(size: 11 * sizeScale, weight: .bold, design: .rounded))
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                        .allowsTightening(true)
+
+                // 経過時間
+                Text(workoutManager.elapsedTimeString)
+                    .font(.system(size: 24 * sizeScale, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+
+                // 2x3 メトリクスグリッド
+                VStack(spacing: cellSpacing) {
+                    // Row 1: 距離 | カロリー
+                    HStack(spacing: cellSpacing) {
+                        WatchMetricCell(
+                            icon: "figure.run",
+                            label: "距離",
+                            value: String(format: "%.2f", workoutManager.distance / 1000),
+                            unit: "km",
+                            color: .blue,
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+
+                        WatchMetricCell(
+                            icon: "flame.fill",
+                            label: "カロリー",
+                            value: String(format: "%.0f", workoutManager.activeCalories),
+                            unit: "kcal",
+                            color: .orange,
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+                    }
+
+                    // Row 2: 平均心拍数 | ペース
+                    HStack(spacing: cellSpacing) {
+                        WatchMetricCell(
+                            icon: "heart.fill",
+                            label: "平均心拍数",
+                            value: workoutManager.averageHeartRate > 0 ? String(format: "%.0f", workoutManager.averageHeartRate) : "--",
+                            unit: "bpm",
+                            color: .red,
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+
+                        WatchMetricCell(
+                            icon: "speedometer",
+                            label: "ペース",
+                            value: workoutManager.currentPaceString,
+                            unit: "/km",
+                            color: .green,
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+                    }
+
+                    // Row 3: 歩数 | フルマラソン予想
+                    HStack(spacing: cellSpacing) {
+                        WatchMetricCell(
+                            icon: "figure.walk.motion",
+                            label: "歩数",
+                            value: String(format: "%.0f", workoutManager.stepCount),
+                            unit: "歩",
+                            color: .purple,
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+
+                        WatchMarathonCell(
+                            prediction: calculateMarathonPrediction(),
+                            sizeScale: sizeScale
+                        )
+                        .frame(width: cellWidth)
+                    }
                 }
-                
-                Spacer()
+                .padding(.horizontal, horizontalPadding)
             }
-            .padding(.horizontal, 4)
-            .padding(.top, 1)
-            .padding(.bottom, 4)
-            
-            // 独立したスクロールビュー（固定高さ）
-            ScrollViewReader { lapProxy in
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        // グリッド表示（5列）
-                        let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 5)
-                        
-                        LazyVGrid(columns: columns, spacing: 0) {
-                            ForEach(Array(workoutManager.lapTimes.enumerated()), id: \.offset) { index, lapTime in
-                                LapTimeCell(
-                                    lapNumber: index + 1,
-                                    lapTime: lapTime,
-                                    color: lapColor(for: lapTime, in: workoutManager.lapTimes)
-                                )
-                                .id("lap-\(index)")
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                        
-                        // スクロール位置の目印（最後に追加）
-                        Color.clear
-                            .frame(height: 1)
-                            .id("lapBottom")
-                    }
-                }
-                .frame(height: 65) // 固定高さ（約2行分のラップが見える）
-                .onChange(of: workoutManager.lapTimes.count) { oldCount, newCount in
-                    // 新しいラップが追加されたとき（カウントが増加したとき）
-                    if newCount > oldCount && newCount > 0 {
-                        print("📊 New lap detected: lap count \(oldCount) -> \(newCount), scrolling to bottom")
-                        // レイアウトが確定してからスクロール
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeOut(duration: 0.35)) {
-                                // 最下部にスクロール
-                                lapProxy.scrollTo("lapBottom", anchor: .bottom)
-                            }
-                        }
-                    }
-                }
-                .onAppear {
-                    // 初期表示時も最新のラップにスクロール
-                    let lapCount = workoutManager.lapTimes.count
-                    if lapCount > 0 {
-                        print("📊 Initial lap scroll: \(lapCount) laps")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            lapProxy.scrollTo("lapBottom", anchor: .bottom)
-                        }
-                    }
-                }
-                .onChange(of: shouldResetScroll) { _, newValue in
-                    // スリープ解除時にラップタイムを最新（一番下）にスクロール
-                    if newValue && workoutManager.lapTimes.count > 0 {
-                        print("📊 Woke up: scrolling laps to bottom")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            lapProxy.scrollTo("lapBottom", anchor: .bottom)
-                        }
-                    }
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-    
-    // ラップタイムの色を決定（最速=赤、最遅=青、それ以外=緑）
-    private func lapColor(for lapTime: TimeInterval, in lapTimes: [TimeInterval]) -> Color {
-        // ラップが1つしかない場合はデフォルト色
-        guard lapTimes.count > 1 else {
-            return .green
-        }
-        
-        let minLap = lapTimes.min() ?? 0
-        let maxLap = lapTimes.max() ?? 0
-        
-        if lapTime == minLap && minLap != maxLap {
-            return .red // 最速
-        } else if lapTime == maxLap && minLap != maxLap {
-            return .blue // 最遅
-        } else {
-            return .green // 通常
-        }
-    }
-    
-    // 新記録（最速ラップ）の情報を取得
-    private func getBestLapInfo() -> (lapNumber: Int, lapTime: TimeInterval)? {
-        guard !workoutManager.lapTimes.isEmpty else {
-            return nil
-        }
-        
-        // 最速タイムを見つける
-        if let minLapTime = workoutManager.lapTimes.min(),
-           let minIndex = workoutManager.lapTimes.firstIndex(of: minLapTime) {
-            return (lapNumber: minIndex + 1, lapTime: minLapTime)
-        }
-        
-        return nil
-    }
-    
-    // ラップタイムをフォーマット
-    private func formatLapTime(_ time: TimeInterval) -> String {
-        let minutes = Int(time / 60)
-        let seconds = Int(time.truncatingRemainder(dividingBy: 60))
-        return String(format: "%d:%02d", minutes, seconds)
+        .ignoresSafeArea(edges: [.top, .bottom])
     }
     
     // コントロール専用画面
@@ -502,15 +199,11 @@ struct WorkoutView: View {
                 let wasPaused = workoutManager.isPaused
                 togglePause()
                 
-                // 再開時：メイン画面に遷移して一番上にスクロール
                 if wasPaused == true {
-                    // 状態変更後、メイン画面に遷移
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         withAnimation {
                             currentPage = 1
                         }
-                        // メイン画面に遷移後、スクロールを一番上に
-                        shouldScrollToTop = true
                     }
                 }
                 // 一時停止時：その画面に留まる（何もしない）
@@ -622,7 +315,7 @@ struct WorkoutView: View {
     
     private func endWorkout() {
         // ワークアウト履歴を保存（メトリクスがリセットされる前に）
-        if workoutManager.elapsedTime > 0 {
+        if workoutManager.elapsedTime >= 10 {
             let record = WorkoutHistoryRecord(
                 workoutName: workoutManager.workoutName,
                 elapsedTime: workoutManager.elapsedTime,
@@ -630,18 +323,14 @@ struct WorkoutView: View {
                 activeCalories: workoutManager.activeCalories,
                 averageHeartRate: workoutManager.averageHeartRate,
                 stepCount: workoutManager.stepCount,
-                lapTimes: workoutManager.lapTimes
+                lapTimes: workoutManager.lapTimes,
+                deviceSource: "watch"
             )
             WorkoutHistoryStore.shared.save(record: record)
         }
 
-        // 点滅タイマーを即座に停止
         stopBlinking()
-        
-        // スクロール状態をリセット
-        shouldScrollToTop = false
-        shouldResetScroll = false
-        
+
         // 一時停止関連の状態をリセット
         isTogglingPause = false
         isButtonVisible = true
@@ -675,90 +364,91 @@ struct WorkoutView: View {
     }
 }
 
-// ラップタイムセル
-struct LapTimeCell: View {
-    let lapNumber: Int
-    let lapTime: TimeInterval
+// Apple Watch用メトリクスセル
+struct WatchMetricCell: View {
+    let icon: String
+    let label: String
+    let value: String
+    let unit: String
     let color: Color
-    
-    // 画面サイズに応じたスケール係数
-    private var sizeScale: CGFloat {
-        let screenWidth = WKInterfaceDevice.current().screenBounds.width
-        return screenWidth / 162.0
-    }
-    
+    let sizeScale: CGFloat
+
     var body: some View {
         VStack(spacing: 0) {
-            // 距離（km）- 上段
-            Text("\(lapNumber)km")
-                .font(.system(size: 13 * sizeScale, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .allowsTightening(true)
-            
-            // ラップタイム - 下段
-            Text(formatLapTime(lapTime))
-                .font(.system(size: 19 * sizeScale, weight: .bold, design: .rounded))
-                .foregroundStyle(color)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .allowsTightening(true)
+            HStack(spacing: 1) {
+                Image(systemName: icon)
+                    .font(.system(size: 11 * sizeScale))
+                Text(label)
+                    .font(.system(size: 11 * sizeScale, weight: .medium))
+            }
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text(value)
+                    .font(.system(size: 22 * sizeScale, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.3)
+                Text(unit)
+                    .font(.system(size: 11 * sizeScale))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.3)
+
+            Spacer(minLength: 0)
         }
-        .frame(height: 30 * sizeScale)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 1)
-        .padding(.horizontal, 1)
-        .background(color.opacity(0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-    }
-    
-    private func formatLapTime(_ time: TimeInterval) -> String {
-        let minutes = Int(time / 60)
-        let seconds = Int(time.truncatingRemainder(dividingBy: 60))
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-}
-
-// コンパクトなメトリクスビュー
-struct CompactMetricView: View {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-    
-    // 画面サイズに応じたスケール係数
-    private var sizeScale: CGFloat {
-        let screenWidth = WKInterfaceDevice.current().screenBounds.width
-        return screenWidth / 162.0
-    }
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.system(size: 11 * sizeScale))
-                .foregroundStyle(color)
-            
-            Text(value)
-                .font(.system(size: 20 * sizeScale, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-            
-            Text(label)
-                .font(.system(size: 11 * sizeScale))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 3)
+        .padding(.horizontal, 2)
         .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
+// Apple Watch用フルマラソン予想セル
+struct WatchMarathonCell: View {
+    let prediction: String
+    let sizeScale: CGFloat
 
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                HStack(spacing: 1) {
+                    Image(systemName: "flag.checkered")
+                        .font(.system(size: 11 * sizeScale))
+                    Text("フルマラソン")
+                        .font(.system(size: 11 * sizeScale, weight: .medium))
+                }
+                Text("予想")
+                    .font(.system(size: 11 * sizeScale, weight: .medium))
+            }
+            .foregroundStyle(.cyan)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+
+            Spacer(minLength: 0)
+
+            Text(prediction)
+                .font(.system(size: 19 * sizeScale, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.3)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 1)
+        .padding(.horizontal, 2)
+        .background(Color.cyan.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
 
 #Preview {
     WorkoutView()

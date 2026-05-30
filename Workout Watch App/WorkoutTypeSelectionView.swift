@@ -159,14 +159,23 @@ struct WatchWorkoutHistoryView: View {
                 List {
                     ForEach(records) { record in
                         VStack(alignment: .leading, spacing: 2) {
-                            HStack {
+                            Text(formatDate(record.date))
+                                .font(.system(size: 12 * sizeScale, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 3) {
+                                Image(workoutIcon(for: record.workoutName))
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20 * sizeScale, height: 20 * sizeScale)
                                 Text(record.workoutName)
-                                    .font(.system(size: 13 * sizeScale, weight: .bold))
-                                Spacer()
-                                Text(formatDate(record.date))
-                                    .font(.system(size: 10 * sizeScale))
-                                    .foregroundStyle(.secondary)
+                                    .font(.system(size: 20 * sizeScale, weight: .bold))
+                                    .foregroundStyle(workoutColor(for: record.workoutName))
+                                    .fixedSize(horizontal: true, vertical: false)
+                                Text(record.deviceEmoji)
+                                    .font(.system(size: 20 * sizeScale))
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
+                            .lineLimit(1)
                             HStack {
                                 HStack(spacing: 2) {
                                     Image(systemName: "figure.run")
@@ -251,6 +260,24 @@ struct WatchWorkoutHistoryView: View {
                 records = []
             }
             Button("キャンセル", role: .cancel) {}
+        }
+    }
+
+    private func workoutColor(for name: String) -> Color {
+        switch name {
+        case "ウォーキング": return .green
+        case "ジョギング": return .blue
+        case "ランニング": return .red
+        default: return .primary
+        }
+    }
+
+    private func workoutIcon(for name: String) -> String {
+        switch name {
+        case "ウォーキング": return "walking"
+        case "ジョギング": return "jogging"
+        case "ランニング": return "running"
+        default: return "running"
         }
     }
 

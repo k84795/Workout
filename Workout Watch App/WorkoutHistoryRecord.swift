@@ -19,8 +19,9 @@ struct WorkoutHistoryRecord: Codable, Identifiable {
     let averageHeartRate: Double
     let stepCount: Double
     let lapTimes: [TimeInterval]
+    var deviceSource: String?
 
-    init(workoutName: String, elapsedTime: TimeInterval, distance: Double, activeCalories: Double, averageHeartRate: Double, stepCount: Double, lapTimes: [TimeInterval]) {
+    init(workoutName: String, elapsedTime: TimeInterval, distance: Double, activeCalories: Double, averageHeartRate: Double, stepCount: Double, lapTimes: [TimeInterval], deviceSource: String? = nil) {
         self.id = UUID()
         self.workoutName = workoutName
         self.date = Date()
@@ -30,6 +31,15 @@ struct WorkoutHistoryRecord: Codable, Identifiable {
         self.averageHeartRate = averageHeartRate
         self.stepCount = stepCount
         self.lapTimes = lapTimes
+        self.deviceSource = deviceSource
+    }
+
+    var deviceEmoji: String {
+        switch deviceSource {
+        case "watch": return "⌚️"
+        case "phone": return "📱"
+        default: return ""
+        }
     }
 }
 
