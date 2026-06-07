@@ -54,8 +54,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastKmDistance: Double = 0.0
     @Published var currentPace: TimeInterval = 0.0 // 秒/km
     
-    // ラップタイム記録（1kmごと）
-    @Published var lapTimes: [TimeInterval] = [] // 各ラップの所要時間（秒）
+    // スプリットタイム記録（1kmごと）
+    @Published var lapTimes: [TimeInterval] = [] // 各スプリットの所要時間（秒）
     
     // 心拍数の履歴（平均計算用・最大30個まで保持）
     private var heartRateHistory: [Double] = []
@@ -939,7 +939,7 @@ class WorkoutManager: NSObject, ObservableObject {
             guard let self = self else { return }
             
             Task { @MainActor in
-                // 🔥 重要: 一時停止中でもラップ記録のため、距離は内部的に増加させ続ける
+                // 🔥 重要: 一時停止中でもスプリット記録のため、距離は内部的に増加させ続ける
                 
                 // 🔧 実機に近いランダムな揺らぎを追加
                 let baseSpeed = 1.4  // 基本速度: 5km/h
@@ -970,7 +970,7 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.simulatorDistance += noisySpeed
                 }
                 
-                // 🔥 一時停止中でもラップ記録のため、maxDistanceは常に更新
+                // 🔥 一時停止中でもスプリット記録のため、maxDistanceは常に更新
                 // ただし、UI表示（distance）は一時停止中は更新しない
                 if !self.isPaused {
                     // 通常時: UI表示も更新
@@ -987,13 +987,13 @@ class WorkoutManager: NSObject, ObservableObject {
                         // スムージング: 移動平均を使用
                         let smoothedDistance = self.recentDistanceUpdates.reduce(0, +) / Double(self.recentDistanceUpdates.count)
                         
-                        // 内部的な最大値を更新（ラップ記録用）
+                        // 内部的な最大値を更新（スプリット記録用）
                         self.maxDistance = max(self.maxDistance, smoothedDistance)
                         print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", self.maxDistance))m (UI frozen at \(String(format: "%.2f", self.distance))m)")
                     }
                 }
                 
-                // 🔥 ラップ記録用に即座にペース更新（一時停止中も継続）
+                // 🔥 スプリット記録用に即座にペース更新（一時停止中も継続）
                 self.updateCurrentPace(newDistance: self.maxDistance)
                 
                 // 一時停止中はUI表示用のメトリクスは更新しない
@@ -1128,7 +1128,7 @@ class WorkoutManager: NSObject, ObservableObject {
             let meterUnit = HKUnit.meter()
             let newDistance = statistics.sumQuantity()?.doubleValue(for: meterUnit) ?? 0
             
-            // 🔥 一時停止中でもラップ記録のため、内部的な距離は更新し続ける
+            // 🔥 一時停止中でもスプリット記録のため、内部的な距離は更新し続ける
             if !isPaused {
                 // 通常時: UI表示も更新
                 updateDistance(newDistance)
@@ -1144,13 +1144,13 @@ class WorkoutManager: NSObject, ObservableObject {
                     // スムージング: 移動平均を使用
                     let smoothedDistance = recentDistanceUpdates.reduce(0, +) / Double(recentDistanceUpdates.count)
                     
-                    // 内部的な最大値を更新（ラップ記録用）
+                    // 内部的な最大値を更新（スプリット記録用）
                     maxDistance = max(maxDistance, smoothedDistance)
                     print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", maxDistance))m (UI frozen at \(String(format: "%.2f", distance))m)")
                 }
             }
             
-            // 🔥 ラップ記録用に即座にペース更新（一時停止中も継続）
+            // 🔥 スプリット記録用に即座にペース更新（一時停止中も継続）
             updateCurrentPace(newDistance: maxDistance)
             
         case HKQuantityType.quantityType(forIdentifier: .stepCount):
@@ -1185,12 +1185,12 @@ class WorkoutManager: NSObject, ObservableObject {
             return
         }
         
-        // 🔥 ラップ記録には内部的な最大距離（maxDistance）を使用（スムージングをバイパス）
-        // これにより、UI表示のラグに関係なく、即座にラップを記録できる
+        // 🔥 スプリット記録には内部的な最大距離（maxDistance）を使用（スムージングをバイパス）
+        // これにより、UI表示のラグに関係なく、即座にスプリットを記録できる
         let actualDistance = maxDistance
         let distanceSinceLastKm = actualDistance - lastKmDistance
         
-        // 1km ごとにラップを記録
+        // 1km ごとにスプリットを記録
         let lapDistance: Double = 1000.0
         
         if distanceSinceLastKm >= lapDistance {
@@ -1206,22 +1206,22 @@ class WorkoutManager: NSObject, ObservableObject {
                 // 1kmあたりの実際のペース
                 currentPace = timeElapsed
                 
-                // ラップタイムを記録（1kmの所要時間）
+                // スプリットタイムを記録（1kmの所要時間）
                 lapTimes.append(timeElapsed)
                 print("🏃 Lap \(lapTimes.count): \(formatLapTime(timeElapsed)) (1km完走, ペース: \(currentPaceString))")
                 print("🏃   Actual distance: \(String(format: "%.2f", actualDistance))m, Display distance: \(String(format: "%.2f", distance))m")
                 
-                // ラップ基準点を更新（実際の距離を使用）
+                // スプリット基準点を更新（実際の距離を使用）
                 lastKmTimestamp = Date()
                 lastKmDistance = actualDistance
             } else {
-                // 初回のラップ基準点を設定
+                // 初回のスプリット基準点を設定
                 lastKmTimestamp = Date()
                 lastKmDistance = actualDistance
                 print("🏃 First lap checkpoint set at actual \(String(format: "%.2f", actualDistance))m (display: \(String(format: "%.2f", distance))m)")
             }
         } else if distance > 0 && elapsedTime > 0 {
-            // まだラップ到達していない場合は、現在のペースを推定
+            // まだスプリット到達していない場合は、現在のペースを推定
             // 走行距離（km）あたりの時間を計算
             let distanceInKm = distance / 1000.0
             if distanceInKm > 0 {
@@ -1237,7 +1237,7 @@ class WorkoutManager: NSObject, ObservableObject {
         }
     }
     
-    // ラップタイムのフォーマット
+    // スプリットタイムのフォーマット
     private func formatLapTime(_ time: TimeInterval) -> String {
         let minutes = Int(time / 60)
         let seconds = Int(time.truncatingRemainder(dividingBy: 60))

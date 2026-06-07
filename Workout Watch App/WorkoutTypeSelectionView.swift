@@ -142,6 +142,7 @@ struct WatchWorkoutHistoryView: View {
     }
 
     var body: some View {
+        NavigationStack {
         Group {
             if records.isEmpty {
                 VStack {
@@ -158,6 +159,9 @@ struct WatchWorkoutHistoryView: View {
             } else {
                 List {
                     ForEach(records) { record in
+                    NavigationLink {
+                        WatchWorkoutLapDetailView(record: record)
+                    } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(formatDate(record.date))
                                 .font(.system(size: 12 * sizeScale, weight: .semibold))
@@ -212,9 +216,31 @@ struct WatchWorkoutHistoryView: View {
                                     .foregroundStyle(.red)
                                 }
                             }
+                            HStack {
+                                if record.distance > 0 {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "speedometer")
+                                            .font(.system(size: 9 * sizeScale))
+                                        Text(formatPace(elapsedTime: record.elapsedTime, distance: record.distance))
+                                            .font(.system(size: 11 * sizeScale))
+                                    }
+                                    .foregroundStyle(.cyan)
+                                }
+                                Spacer()
+                                if record.stepCount > 0 {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "figure.walk")
+                                            .font(.system(size: 9 * sizeScale))
+                                        Text(String(format: "%.0f歩", record.stepCount))
+                                            .font(.system(size: 11 * sizeScale))
+                                    }
+                                    .foregroundStyle(.purple)
+                                }
+                            }
                         }
                         .padding(.vertical, 2)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 recordToDelete = record
                                 showDeleteAlert = true
@@ -261,6 +287,7 @@ struct WatchWorkoutHistoryView: View {
             }
             Button("キャンセル", role: .cancel) {}
         }
+        }
     }
 
     private func workoutColor(for name: String) -> Color {
@@ -295,6 +322,62 @@ struct WatchWorkoutHistoryView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func formatPace(elapsedTime: TimeInterval, distance: Double) -> String {
+        guard distance > 0 else { return "--:--" }
+        let pacePerKm = elapsedTime / (distance / 1000)
+        let minutes = Int(pacePerKm) / 60
+        let seconds = Int(pacePerKm) % 60
+        return String(format: "%d:%02d/km", minutes, seconds)
+    }
+}
+
+struct WatchWorkoutLapDetailView: View {
+    let record: WorkoutHistoryRecord
+
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        return screenWidth / 162.0
+    }
+
+    var body: some View {
+        List {
+            if record.lapTimes.isEmpty {
+                Text("スプリット記録はありません")
+                    .font(.system(size: 14 * sizeScale))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(record.lapTimes.enumerated()), id: \.offset) { index, time in
+                    HStack {
+                        Text("\(index + 1)km")
+                            .font(.system(size: 16 * sizeScale, weight: .bold))
+                        Spacer()
+                        Text(formatLapTime(time))
+                            .font(.system(size: 16 * sizeScale, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(lapColor(for: time))
+                    }
+                }
+            }
+        }
+        .navigationTitle("スプリット")
+    }
+
+    private func formatLapTime(_ time: TimeInterval) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        let hundredths = Int((time.truncatingRemainder(dividingBy: 1)) * 100)
+        return String(format: "%d:%02d.%02d", minutes, seconds, hundredths)
+    }
+
+    private func lapColor(for time: TimeInterval) -> Color {
+        guard record.lapTimes.count > 1 else { return .green }
+        let fastest = record.lapTimes.min() ?? 0
+        let slowest = record.lapTimes.max() ?? 0
+        if time == fastest { return .red }
+        if time == slowest && fastest != slowest { return .blue }
+        return .green
     }
 }
 
