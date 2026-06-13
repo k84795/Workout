@@ -11,6 +11,7 @@ struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
     @State private var currentPage = 0
     @State private var isTogglingPause = false
+    @State private var isEndingWorkout = false
     
     // タイマーベースの点滅制御
     @State private var blinkTimer: Timer?
@@ -63,6 +64,7 @@ struct WorkoutView: View {
         .onAppear {
             currentPage = 1
             isTogglingPause = false
+            isEndingWorkout = false
             isButtonVisible = true
             if workoutManager.isPaused {
                 startBlinking()
@@ -71,6 +73,7 @@ struct WorkoutView: View {
         .onDisappear {
             stopBlinking()
             isTogglingPause = false
+            isEndingWorkout = false
         }
     }
     
@@ -93,24 +96,26 @@ struct WorkoutView: View {
         GeometryReader { geometry in
             let cellSpacing: CGFloat = 2
             let horizontalPadding: CGFloat = 4
+            let footerHeight: CGFloat = 8
             let availableWidth = geometry.size.width - horizontalPadding * 2
             let cellWidth = (availableWidth - cellSpacing) / 2
 
             VStack(spacing: 0) {
                 // ワークアウトタイトル
                 Text(workoutManager.workoutName)
-                    .font(.system(size: 13 * sizeScale, weight: .bold))
+                    .font(.system(size: 12 * sizeScale, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
 
                 // 経過時間
                 Text(workoutManager.elapsedTimeString)
-                    .font(.system(size: 24 * sizeScale, weight: .bold, design: .rounded))
+                    .font(.system(size: 21 * sizeScale, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
+                    .padding(.bottom, 2)
 
-                // 2x3 メトリクスグリッド
+                // 2x3 メトリクスグリッド（残り領域を3行に均等分配）
                 VStack(spacing: cellSpacing) {
                     // Row 1: 距離 | カロリー
                     HStack(spacing: cellSpacing) {
@@ -134,6 +139,7 @@ struct WorkoutView: View {
                         )
                         .frame(width: cellWidth)
                     }
+                    .frame(maxHeight: .infinity)
 
                     // Row 2: 平均心拍数 | ペース
                     HStack(spacing: cellSpacing) {
@@ -157,6 +163,7 @@ struct WorkoutView: View {
                         )
                         .frame(width: cellWidth)
                     }
+                    .frame(maxHeight: .infinity)
 
                     // Row 3: 歩数 | フルマラソン予想
                     HStack(spacing: cellSpacing) {
@@ -176,10 +183,16 @@ struct WorkoutView: View {
                         )
                         .frame(width: cellWidth)
                     }
+                    .frame(maxHeight: .infinity)
                 }
                 .padding(.horizontal, horizontalPadding)
+                .frame(maxHeight: .infinity)
+
+                // フッター（画面下の空白）
+                Color.clear
+                    .frame(height: footerHeight)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea(edges: [.top, .bottom])
     }
@@ -191,14 +204,14 @@ struct WorkoutView: View {
             
             // 一時停止/再開ボタン
             Button {
-                guard !isTogglingPause else {
+                guard !isTogglingPause && !isEndingWorkout else {
                     print("⚠️ Already toggling pause, ignoring tap")
                     return
                 }
-                
+
                 let wasPaused = workoutManager.isPaused
                 togglePause()
-                
+
                 if wasPaused == true {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         withAnimation {
@@ -221,9 +234,10 @@ struct WorkoutView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(workoutManager.isPaused ? .green : .orange)
+            .disabled(isTogglingPause || isEndingWorkout)
             .opacity(isTogglingPause ? 0.5 : (workoutManager.isPaused && !isButtonVisible ? 0.4 : 1.0))
             .animation(.easeInOut(duration: 0.2), value: isButtonVisible)
-            
+
             // ワークアウト終了ボタン
             Button {
                 endWorkout()
@@ -237,6 +251,8 @@ struct WorkoutView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
+            .disabled(isEndingWorkout)
+            .opacity(isEndingWorkout ? 0.5 : 1.0)
             
             Spacer()
         }
@@ -314,50 +330,61 @@ struct WorkoutView: View {
     }
     
     private func endWorkout() {
-        // ワークアウト履歴を保存（メトリクスがリセットされる前に）
-        if workoutManager.elapsedTime >= 10 {
-            let record = WorkoutHistoryRecord(
-                workoutName: workoutManager.workoutName,
-                elapsedTime: workoutManager.elapsedTime,
-                distance: workoutManager.distance,
-                activeCalories: workoutManager.activeCalories,
-                averageHeartRate: workoutManager.averageHeartRate,
-                stepCount: workoutManager.stepCount,
-                lapTimes: workoutManager.lapTimes,
-                deviceSource: "watch"
-            )
-            WorkoutHistoryStore.shared.save(record: record)
+        // 連続タップを防止（履歴の重複保存を防ぐ）
+        guard !isEndingWorkout else {
+            print("⚠️ endWorkout: Already ending, ignoring tap")
+            return
         }
+        isEndingWorkout = true
+
+        // ワークアウト履歴のスナップショットを即座に取得（後続のリセットに備える）
+        let shouldSaveRecord = workoutManager.elapsedTime >= 10
+        let record: WorkoutHistoryRecord? = shouldSaveRecord ? WorkoutHistoryRecord(
+            workoutName: workoutManager.workoutName,
+            elapsedTime: workoutManager.elapsedTime,
+            distance: workoutManager.distance,
+            activeCalories: workoutManager.activeCalories,
+            averageHeartRate: workoutManager.averageHeartRate,
+            stepCount: workoutManager.stepCount,
+            lapTimes: workoutManager.lapTimes,
+            deviceSource: "watch"
+        ) : nil
 
         stopBlinking()
 
         // 一時停止関連の状態をリセット
         isTogglingPause = false
         isButtonVisible = true
-        
+
         Task { @MainActor in
             print("🔴 WorkoutView: Starting workout end sequence")
-            
+
+            // ボタンの視覚フィードバックを優先するため一度yieldしてから保存
+            if let record {
+                await Task.yield()
+                WorkoutHistoryStore.shared.save(record: record)
+            }
+
             // ワークアウトを終了
             await workoutManager.endWorkout()
-            
+
             // 状態が確実に更新されるまで待機
             print("🔴 WorkoutView: Waiting for state update...")
             print("🔴 WorkoutView: isWorkoutActive = \(workoutManager.isWorkoutActive)")
             print("🔴 WorkoutView: session = \(workoutManager.session != nil)")
-            
+
             // ページを初期状態に戻す
             currentPage = 1
-            
+
             // 少し待機してから状態を確認
             try? await Task.sleep(for: .milliseconds(100))
-            
+
             if workoutManager.isWorkoutActive {
                 print("⚠️ WorkoutView: isWorkoutActive is still true after endWorkout!")
                 // 強制的にfalseに設定（フォールバック）
                 workoutManager.isWorkoutActive = false
             }
-            
+
             print("✅ WorkoutView: All states cleaned up after workout end")
             print("✅ WorkoutView: Final isWorkoutActive = \(workoutManager.isWorkoutActive)")
         }

@@ -8,6 +8,7 @@
 import Foundation
 import HealthKit
 import Combine
+import CoreMotion
 
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
@@ -20,9 +21,7 @@ class WorkoutManager: NSObject, ObservableObject {
     // ワークアウト状態
     @Published var isWorkoutActive = false {
         didSet {
-            print("⚠️⚠️⚠️ isWorkoutActive changed from \(oldValue) to \(isWorkoutActive)")
-            print("⚠️⚠️⚠️ Stack trace:")
-            Thread.callStackSymbols.forEach { print("  \($0)") }
+            print("⚠️ isWorkoutActive: \(oldValue) → \(isWorkoutActive)")
         }
     }
     @Published var isPaused = false
@@ -64,8 +63,9 @@ class WorkoutManager: NSObject, ObservableObject {
     // タイマー
     private var timer: Timer?
     
-    // 歩数監視用（ウォーキング専用）
-    private var stepCountTimer: Timer?
+    // 歩数監視用（リアルタイムの万歩計）
+    private let pedometer = CMPedometer()
+    private var isPedometerActive = false
     private var workoutStartDate: Date?
     
     // シミュレータ用のテストデータ生成
@@ -124,7 +124,26 @@ class WorkoutManager: NSObject, ObservableObject {
             }
         }
     }
-    
+
+    // アプリ起動直後に呼び出して、初回ワークアウト時の遅延要因を先回りで解消する。
+    // - HealthKit 権限要求（startWorkout 内の 500ms の sleep を避ける）
+    // - CMPedometer の初期化（最初の startUpdates のコールドスタートを避ける）
+    func prewarm() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+
+        if !isAuthorized {
+            requestAuthorization()
+        }
+
+        if CMPedometer.isStepCountingAvailable() {
+            let now = Date()
+            let from = now.addingTimeInterval(-60)
+            pedometer.queryPedometerData(from: from, to: now) { _, _ in
+                // 結果は使わない。Core Motion 初期化のためだけに呼び出す。
+            }
+        }
+    }
+
     // MARK: - Workout Control
     
     nonisolated func startWorkout(activityType: HKWorkoutActivityType, workoutName: String) async {
@@ -294,7 +313,7 @@ class WorkoutManager: NSObject, ObservableObject {
             print("🔵 session: \(self.session == nil ? "nil ✅" : "NOT NIL ❌")")
             print("🔵 builder: \(self.builder == nil ? "nil ✅" : "NOT NIL ❌")")
             print("🔵 timer: \(self.timer == nil ? "nil ✅" : "NOT NIL ❌")")
-            print("🔵 stepCountTimer: \(self.stepCountTimer == nil ? "nil ✅" : "NOT NIL ❌")")
+            print("🔵 pedometer active: \(self.isPedometerActive ? "YES ❌" : "no ✅")")
             print("🔵 ========================================")
         }
         
@@ -411,8 +430,8 @@ class WorkoutManager: NSObject, ObservableObject {
                 #endif
             }
             
-            // 歩数監視を開始（ウォーキングの場合）
-            if activityType == .walking {
+            // 歩数監視を開始（歩行を伴うアクティビティ: walking / running）
+            if activityType == .walking || activityType == .running {
                 print("🔵 Starting step count monitoring")
                 await MainActor.run {
                     self.startStepCountMonitoring()
@@ -433,44 +452,14 @@ class WorkoutManager: NSObject, ObservableObject {
             }
             #endif
             
-            // 🔥 重要: isWorkoutActiveを更新してUI遷移をトリガー
-            print("🔵 ========================================")
-            print("🔵 ⭐️ Setting isWorkoutActive = true")
-            print("🔵 About to call MainActor.run for UI update...")
-            print("🔵 Current isWorkoutActive BEFORE: \(await MainActor.run { self.isWorkoutActive })")
+            // isWorkoutActive を更新して UI 遷移をトリガー
             await MainActor.run {
-                print("🔵 Inside MainActor.run block")
-                print("🔵 isWorkoutActive before change: \(self.isWorkoutActive)")
-                
-                // シミュレータの警告メッセージ以外のエラーメッセージをクリア
                 if self.errorMessage != "シミュレータモード: データ収集は制限されています" {
                     self.errorMessage = nil
                 }
-                
-                // 強制的にobjectWillChangeを発火
-                print("🔵 Sending objectWillChange (before)")
-                self.objectWillChange.send()
-                
                 self.isWorkoutActive = true
-                print("🔵 ✅ isWorkoutActive changed to: \(self.isWorkoutActive)")
-                
-                // 再度objectWillChangeを発火（確実に通知）
-                print("🔵 Sending objectWillChange (after)")
-                self.objectWillChange.send()
-                
-                print("🔵 session: \(self.session != nil)")
-                print("🔵 builder: \(self.builder != nil)")
             }
-            print("🔵 MainActor.run completed")
-            print("🔵 Current isWorkoutActive AFTER: \(await MainActor.run { self.isWorkoutActive })")
-            
-            // UI更新を確実にするため、少し待機
-            try? await Task.sleep(for: .milliseconds(100))
-            
-            print("🔵 Session state: \(newSession.state.rawValue)")
-            print("🔵 Builder: \(newBuilder)")
-            print("🔵 ========================================")
-            
+
             print("🔵 ✅ Workout startup complete!")
             
         } catch let error as NSError {
@@ -875,7 +864,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 print("🔴 session: \(self.session == nil ? "nil ✅" : "NOT NIL ❌")")
                 print("🔴 builder: \(self.builder == nil ? "nil ✅" : "NOT NIL ❌")")
                 print("🔴 timer: \(self.timer == nil ? "nil ✅" : "NOT NIL ❌")")
-                print("🔴 stepCountTimer: \(self.stepCountTimer == nil ? "nil ✅" : "NOT NIL ❌")")
+                print("🔴 pedometer active: \(self.isPedometerActive ? "YES ❌" : "no ✅")")
                 
                 #if targetEnvironment(simulator)
                 print("🔴 simulatorDataTimer: \(self.simulatorDataTimer == nil ? "nil ✅" : "NOT NIL ❌")")
@@ -1135,17 +1124,14 @@ class WorkoutManager: NSObject, ObservableObject {
             } else {
                 // 一時停止中: 内部的な最大距離のみ更新（UI表示は凍結）
                 if newDistance > maxDistance {
-                    // 履歴に追加
+                    maxDistance = newDistance
+
+                    // 履歴も保持
                     recentDistanceUpdates.append(newDistance)
                     if recentDistanceUpdates.count > maxDistanceHistory {
                         recentDistanceUpdates.removeFirst()
                     }
-                    
-                    // スムージング: 移動平均を使用
-                    let smoothedDistance = recentDistanceUpdates.reduce(0, +) / Double(recentDistanceUpdates.count)
-                    
-                    // 内部的な最大値を更新（スプリット記録用）
-                    maxDistance = max(maxDistance, smoothedDistance)
+
                     print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", maxDistance))m (UI frozen at \(String(format: "%.2f", distance))m)")
                 }
             }
@@ -1322,79 +1308,30 @@ class WorkoutManager: NSObject, ObservableObject {
             print("⚠️ updateDistance: Invalid negative distance \(newDistance), ignoring")
             return
         }
-        
-        // 🔧 改善: ワークアウト開始直後（100m未満）はより厳しい閾値を使用
-        let isEarlyStage = maxDistance < 100.0
-        let maxAllowedJump: Double = isEarlyStage ? 20.0 : 50.0  // 初期は20mまで
-        
-        // 極端な変化を検出
-        if maxDistance > 0 {
-            let delta = newDistance - maxDistance
-            
-            // 急激な増加は無視（GPS誤差の可能性が高い）
-            if delta > maxAllowedJump {
-                print("⚠️ Distance jump too large: +\(String(format: "%.2f", delta))m (max: \(maxAllowedJump)m), ignoring (likely GPS error)")
-                return
-            }
-            
-            // 🔧 改善: 初期段階では減少をより厳しく制限
-            let minAllowedDecrease: Double = isEarlyStage ? -1.0 : -2.0
-            if delta < minAllowedDecrease {
-                print("⚠️ Distance decreased: \(String(format: "%.2f", delta))m (min: \(minAllowedDecrease)m), ignoring")
-                return
-            }
-            
-            // わずかな減少は測定誤差として無視
-            if delta < 0 && delta > minAllowedDecrease {
-                print("⚠️ Minor distance fluctuation: \(String(format: "%.2f", delta))m, ignoring")
-                return
-            }
-        }
-        
+
+        // HealthKitから渡される値は累積距離（HealthKit/CoreLocation側でフィルタ済み）。
+        // ここでは単調増加だけ保証し、過剰なスムージングや閾値で UI 更新を止めない。
         if newDistance > maxDistance {
-            // 履歴に追加
+            maxDistance = newDistance
+
+            // 履歴も保持（一時停止解除時の整合性用）
             recentDistanceUpdates.append(newDistance)
             if recentDistanceUpdates.count > maxDistanceHistory {
                 recentDistanceUpdates.removeFirst()
             }
-            
-            // 🔧 改善: 初期段階ではより多くのサンプルで平均化
-            let requiredSamples = isEarlyStage ? 3 : 1
-            guard recentDistanceUpdates.count >= requiredSamples else {
-                print("📊 Distance buffering: \(recentDistanceUpdates.count)/\(requiredSamples) samples collected")
-                return
+
+            // UI を即時反映（1m 以上の増分で更新、細かい変化も逃さない）
+            let displayDelta = newDistance - lastDisplayedDistance
+            if displayDelta >= 1.0 {
+                lastDisplayedDistance = newDistance
+                distance = newDistance
+                print("✅ Distance UI UPDATED: \(String(format: "%.2f", distance))m (+\(String(format: "%.2f", displayDelta))m)")
             }
-            
-            // スムージング: 移動平均を使用（全履歴の平均）
-            let smoothedDistance = recentDistanceUpdates.reduce(0, +) / Double(recentDistanceUpdates.count)
-            
-            // 内部的な最大値を更新（常に最新の最大値を保持）
-            maxDistance = max(maxDistance, smoothedDistance)
-            
-            // 🔧 改善: 初期段階ではより大きな閾値でUI更新（安定性重視）
-            let displayThreshold: Double = isEarlyStage ? 5.0 : 3.0
-            let displayDelta = smoothedDistance - lastDisplayedDistance
-            
-            if displayDelta >= displayThreshold {
-                lastDisplayedDistance = smoothedDistance
-                distance = smoothedDistance
-                
-                let stageLabel = isEarlyStage ? "EARLY" : "STABLE"
-                print("✅ Distance UI UPDATED [\(stageLabel)]: \(String(format: "%.2f", distance))m (+\(String(format: "%.2f", displayDelta))m, smoothed from \(recentDistanceUpdates.count) samples)")
-                
-                // ペース計算は外部（updateForStatistics）で実行されるため、ここでは呼ばない
-            } else {
-                // 内部的には更新されているが、UI表示は変えない（安定性のため）
-                if displayDelta > 0 {
-                    print("📊 Distance buffered [\(isEarlyStage ? "EARLY" : "STABLE")]: \(String(format: "%.2f", smoothedDistance))m (delta: +\(String(format: "%.2f", displayDelta))m, waiting for \(displayThreshold)m threshold)")
-                }
-            }
-            
         } else if newDistance < maxDistance {
-            // 減少した場合は無視（最大値を維持）
+            // 累積距離が減ることは通常ないので無視（最大値を維持）
             let decreaseAmount = maxDistance - newDistance
             if decreaseAmount > 2.0 {
-                print("⚠️ Distance data decreased significantly (\(String(format: "%.2f", newDistance))m < \(String(format: "%.2f", maxDistance))m, -\(String(format: "%.2f", decreaseAmount))m), ignoring")
+                print("⚠️ Distance data decreased (\(String(format: "%.2f", newDistance))m < \(String(format: "%.2f", maxDistance))m), ignoring")
             }
         }
     }
@@ -1407,83 +1344,66 @@ class WorkoutManager: NSObject, ObservableObject {
             print("⚠️ updateStepCount: Invalid negative count \(newStepCount), ignoring")
             return
         }
-        
+
         if newStepCount > maxStepCount {
-            // 増加した場合のみ更新
+            // 内部の最大値は常に更新（スプリット記録などで使用）
             maxStepCount = newStepCount
-            stepCount = newStepCount
-            print("🚶 Step count: \(Int(stepCount)) steps")
-            
+
+            // 一時停止中は UI 表示を凍結
+            if !isPaused {
+                stepCount = newStepCount
+                print("🚶 Step count: \(Int(stepCount)) steps")
+            } else {
+                print("⏸️ Paused - Internal steps updated: \(Int(maxStepCount)) steps (UI frozen at \(Int(stepCount)) steps)")
+            }
         } else if newStepCount < maxStepCount {
             // 減少した場合は無視
             print("⚠️ Step count data decreased (\(Int(newStepCount)) < \(Int(maxStepCount))), ignoring")
         }
     }
     
-    // MARK: - Step Count Monitoring
-    
+    // MARK: - Step Count Monitoring (CMPedometer リアルタイム更新)
+
     private func startStepCountMonitoring() {
-        // 既存のタイマーを停止
+        // 既存の更新を停止
         stopStepCountMonitoring()
-        
-        print("🚶 Starting step count monitoring with timer")
-        
-        // 2秒ごとに歩数を取得
-        stepCountTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor in
-                await self.fetchStepCount()
-            }
-        }
-        
-        RunLoop.current.add(stepCountTimer!, forMode: .common)
-    }
-    
-    private func fetchStepCount() async {
-        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount),
-              let startDate = workoutStartDate else {
-            print("⚠️ Cannot fetch step count - stepType or startDate is nil")
+
+        guard CMPedometer.isStepCountingAvailable() else {
+            print("⚠️ CMPedometer step counting is not available on this device")
             return
         }
-        
-        let now = Date()
-        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: now, options: .strictStartDate)
-        
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let query = HKStatisticsQuery(
-                quantityType: stepType,
-                quantitySamplePredicate: predicate,
-                options: .cumulativeSum
-            ) { _, result, error in
-                Task { @MainActor in
-                    if let error = error {
-                        print("❌ Step count query error: \(error.localizedDescription)")
-                        continuation.resume()
-                        return
-                    }
-                    
-                    if let sum = result?.sumQuantity() {
-                        let steps = sum.doubleValue(for: .count())
-                        
-                        // 専用メソッドで歩数を更新（単調増加を保証）
-                        self.updateStepCount(steps)
-                    } else {
-                        print("⚠️ No step count data available from query")
-                    }
-                    
-                    continuation.resume()
-                }
+
+        guard let startDate = workoutStartDate else {
+            print("⚠️ Cannot start pedometer - workoutStartDate is nil")
+            return
+        }
+
+        print("🚶 Starting real-time pedometer updates from \(startDate)")
+        isPedometerActive = true
+
+        // CMPedometer は歩数が変化するたびに（おおよそ1秒間隔で）ハンドラを呼び出す
+        pedometer.startUpdates(from: startDate) { [weak self] data, error in
+            guard let self = self else { return }
+
+            if let error = error {
+                print("❌ CMPedometer error: \(error.localizedDescription)")
+                return
             }
-            
-            self.healthStore.execute(query)
+
+            guard let data = data else { return }
+            let steps = data.numberOfSteps.doubleValue
+
+            Task { @MainActor in
+                self.updateStepCount(steps)
+            }
         }
     }
-    
+
     private func stopStepCountMonitoring() {
-        if stepCountTimer != nil {
-            stepCountTimer?.invalidate()
-            stepCountTimer = nil
-            print("🚶 Step count monitoring stopped and cleared")
+        if isPedometerActive {
+            pedometer.stopUpdates()
+            isPedometerActive = false
+            print("🚶 Pedometer updates stopped")
         }
     }
 }

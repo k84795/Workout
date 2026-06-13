@@ -34,5 +34,7 @@
 	<string>ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>歩数をリアルタイムに表示するために、モーションデータへのアクセスが必要です。</string>
 </dict>
 </plist>

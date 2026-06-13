@@ -1286,7 +1286,9 @@ class PhoneMusicController: ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
-            self?.updatePlaybackState()
+            MainActor.assumeIsolated {
+                self?.updatePlaybackState()
+            }
         }
         
         NotificationCenter.default.addObserver(
@@ -1294,7 +1296,9 @@ class PhoneMusicController: ObservableObject {
             object: musicPlayer,
             queue: .main
         ) { [weak self] _ in
-            self?.updateNowPlayingInfo()
+            MainActor.assumeIsolated {
+                self?.updateNowPlayingInfo()
+            }
         }
         
         musicPlayer.beginGeneratingPlaybackNotifications()
@@ -1340,8 +1344,10 @@ class PhoneMusicController: ObservableObject {
         updatePlaybackState()
         
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.updateNowPlayingInfo()
-            self?.updatePlaybackState()
+            MainActor.assumeIsolated {
+                self?.updateNowPlayingInfo()
+                self?.updatePlaybackState()
+            }
         }
     }
     

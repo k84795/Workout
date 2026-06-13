@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import Workout_ios
+@testable import RUX
 
 struct Workout_iosTests {
 
