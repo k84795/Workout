@@ -52,8 +52,9 @@ struct PhoneContentView: View {
             if !hasRequestedAuthorization {
                 hasRequestedAuthorization = true
                 // わずかな遅延を入れてUIが完全に表示されてから実行
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    workoutManager.requestAuthorization()
+                Task {
+                    try? await Task.sleep(for: .seconds(0.5))
+                    await workoutManager.requestAuthorization()
                 }
             }
         }

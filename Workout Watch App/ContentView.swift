@@ -9,14 +9,14 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
-    
+    // ワークアウト開始のたびにインクリメントし、WorkoutViewを確実に新規生成する
+    @State private var workoutViewID = 0
+
     var body: some View {
-        let _ = print("🟡 ContentView body evaluated - isWorkoutActive: \(workoutManager.isWorkoutActive)")
-        
-        return Group {
+        Group {
             if workoutManager.isWorkoutActive {
                 WorkoutView()
-                    .id("workout-view")
+                    .id(workoutViewID)
                     .transition(.opacity)
             } else {
                 WorkoutTypeSelectionView()
@@ -25,19 +25,15 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
-        .onChange(of: workoutManager.isWorkoutActive) { oldValue, newValue in
-            print("🟡 ContentView: isWorkoutActive changed from \(oldValue) to \(newValue)")
-            print("🟡 ContentView: session exists = \(workoutManager.session != nil)")
-            print("🟡 ContentView: builder exists = \(workoutManager.builder != nil)")
-            
-            if !newValue {
-                print("🟡 ContentView: Should now display WorkoutTypeSelectionView")
-            } else {
-                print("🟡 ContentView: Should now display WorkoutView")
+        .onChange(of: workoutManager.isWorkoutActive) { _, newValue in
+            if newValue {
+                workoutViewID += 1
             }
         }
         .task {
-            print("🟡 ContentView: Initial state - isWorkoutActive = \(workoutManager.isWorkoutActive)")
+            // アプリ起動時に権限リクエストとCoreMotion初期化を先行実行し、
+            // 初回ワークアウト開始の遅延・失敗を防ぐ
+            await workoutManager.prewarm()
         }
     }
 }

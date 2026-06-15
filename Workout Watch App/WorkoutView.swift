@@ -9,14 +9,15 @@ import SwiftUI
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
-    @State private var currentPage = 0
+    @State private var currentPage = 1
     @State private var isTogglingPause = false
     @State private var isEndingWorkout = false
     
     // タイマーベースの点滅制御
     @State private var blinkTimer: Timer?
     @State private var isButtonVisible = true
-    
+    @State private var clockTriggerActive = false
+
     @Environment(\.scenePhase) private var scenePhase
     
     // 画面サイズに応じたスケール係数
@@ -63,11 +64,21 @@ struct WorkoutView: View {
         }
         .onAppear {
             currentPage = 1
+            clockTriggerActive = false
             isTogglingPause = false
             isEndingWorkout = false
             isButtonVisible = true
             if workoutManager.isPaused {
                 startBlinking()
+            }
+            // watchOSはセーフエリアゾーンのコンテンツが「変化」した時のみ時計位置を更新する。
+            // クロスフェード(0.3s)完了後にignoresSafeAreaをトグルして変化を作り時計を右上へ移動させる。
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                guard workoutManager.isWorkoutActive else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    clockTriggerActive = true
+                }
             }
         }
         .onDisappear {
@@ -194,7 +205,7 @@ struct WorkoutView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .ignoresSafeArea(edges: [.top, .bottom])
+        .ignoresSafeArea(edges: clockTriggerActive ? [.top, .bottom] : [.bottom])
     }
     
     // コントロール専用画面
@@ -260,73 +271,48 @@ struct WorkoutView: View {
     }
     
     private func togglePause() {
-        // 連続タップを防止
-        guard !isTogglingPause else {
-            print("⚠️ togglePause: Already toggling, ignoring")
-            return
-        }
-        
+        guard !isTogglingPause else { return }
+
         isTogglingPause = true
-        
-        print("🔄 togglePause: isPaused = \(workoutManager.isPaused)")
-        
+
         if workoutManager.isPaused {
-            print("🔄 togglePause: Calling resumeWorkout()")
             workoutManager.resumeWorkout()
         } else {
-            print("🔄 togglePause: Calling pauseWorkout()")
             workoutManager.pauseWorkout()
         }
-        
-        // 短い時間でフラグをリセット（WorkoutManagerの処理時間と合わせる）
+
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
             isTogglingPause = false
-            print("🔄 togglePause: Ready for next toggle")
         }
     }
     
     private func startBlinking() {
-        print("🔴 startBlinking called")
-        
-        // 既存のタイマーを停止
         stopBlinking()
-        
-        // 初期状態を設定
         isButtonVisible = true
-        
-        // 0.8秒ごとに切り替え
+
         blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: true) { _ in
             Task { @MainActor in
                 withAnimation(.easeInOut(duration: 0.4)) {
                     self.isButtonVisible.toggle()
                 }
-                print("🔴 Blink toggle: isButtonVisible = \(self.isButtonVisible)")
             }
         }
-        
-        // タイマーをRunLoopに追加
+
         if let timer = blinkTimer {
             RunLoop.current.add(timer, forMode: .common)
-            print("🔴 Blink timer started")
         }
     }
-    
+
     private func stopBlinking() {
-        print("🟢 stopBlinking called")
-        
-        // タイマーを停止
         blinkTimer?.invalidate()
         blinkTimer = nil
-        
-        // 完全に表示状態に戻す（アニメーション付き）
+
         Task { @MainActor in
             withAnimation(.easeOut(duration: 0.2)) {
                 isButtonVisible = true
             }
         }
-        
-        print("🟢 Blink timer stopped, isButtonVisible = \(isButtonVisible)")
     }
     
     private func endWorkout() {
@@ -357,6 +343,8 @@ struct WorkoutView: View {
         isButtonVisible = true
 
         Task { @MainActor in
+            defer { isEndingWorkout = false }
+
             print("🔴 WorkoutView: Starting workout end sequence")
 
             // ボタンの視覚フィードバックを優先するため一度yieldしてから保存
@@ -368,25 +356,18 @@ struct WorkoutView: View {
             // ワークアウトを終了
             await workoutManager.endWorkout()
 
-            // 状態が確実に更新されるまで待機
-            print("🔴 WorkoutView: Waiting for state update...")
             print("🔴 WorkoutView: isWorkoutActive = \(workoutManager.isWorkoutActive)")
             print("🔴 WorkoutView: session = \(workoutManager.session != nil)")
 
             // ページを初期状態に戻す
             currentPage = 1
 
-            // 少し待機してから状態を確認
+            // フォールバック: 万が一 isWorkoutActive が残っていれば強制リセット
             try? await Task.sleep(for: .milliseconds(100))
-
             if workoutManager.isWorkoutActive {
                 print("⚠️ WorkoutView: isWorkoutActive is still true after endWorkout!")
-                // 強制的にfalseに設定（フォールバック）
                 workoutManager.isWorkoutActive = false
             }
-
-            print("✅ WorkoutView: All states cleaned up after workout end")
-            print("✅ WorkoutView: Final isWorkoutActive = \(workoutManager.isWorkoutActive)")
         }
     }
 }

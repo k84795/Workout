@@ -99,11 +99,12 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Authorization
     
-    func requestAuthorization() {
+    // async版: ユーザーが権限ダイアログに応答するまで待機する
+    nonisolated func requestAuthorization() async {
         let typesToShare: Set<HKSampleType> = [
             HKWorkoutType.workoutType()
         ]
-        
+
         let typesToRead: Set<HKObjectType> = [
             HKQuantityType.quantityType(forIdentifier: .heartRate)!,
             HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
@@ -111,36 +112,38 @@ class WorkoutManager: NSObject, ObservableObject {
             HKQuantityType.quantityType(forIdentifier: .stepCount)!,
             HKObjectType.activitySummaryType()
         ]
-        
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
-            Task { @MainActor in
-                if let error = error {
-                    print("❌ Authorization failed: \(error.localizedDescription)")
-                    self.isAuthorized = false
-                } else {
-                    print("✅ HealthKit authorization success: \(success)")
-                    self.isAuthorized = success
-                }
+
+        let store = await MainActor.run { self.healthStore }
+        do {
+            try await store.requestAuthorization(toShare: typesToShare, read: typesToRead)
+            await MainActor.run {
+                self.isAuthorized = true
+                print("✅ HealthKit authorization granted")
+            }
+        } catch {
+            await MainActor.run {
+                self.isAuthorized = false
+                print("❌ Authorization failed: \(error.localizedDescription)")
             }
         }
     }
 
     // アプリ起動直後に呼び出して、初回ワークアウト時の遅延要因を先回りで解消する。
-    // - HealthKit 権限要求（startWorkout 内の 500ms の sleep を避ける）
-    // - CMPedometer の初期化（最初の startUpdates のコールドスタートを避ける）
-    func prewarm() {
+    // - HealthKit 権限要求（ユーザーの応答を待ってから startWorkout に進める）
+    // - CMPedometer の startUpdates/stopUpdates で真のウォームアップ（コールドスタート遅延を防ぐ）
+    func prewarm() async {
         guard HKHealthStore.isHealthDataAvailable() else { return }
 
         if !isAuthorized {
-            requestAuthorization()
+            await requestAuthorization()
         }
 
         if CMPedometer.isStepCountingAvailable() {
-            let now = Date()
-            let from = now.addingTimeInterval(-60)
-            pedometer.queryPedometerData(from: from, to: now) { _, _ in
-                // 結果は使わない。Core Motion 初期化のためだけに呼び出す。
-            }
+            // queryPedometerData ではなく startUpdates/stopUpdates で真のウォームアップを行う。
+            // これにより 1 回目の startWorkout での startUpdates がコールドスタートにならない。
+            pedometer.startUpdates(from: Date()) { _, _ in }
+            try? await Task.sleep(for: .milliseconds(600))
+            pedometer.stopUpdates()
         }
     }
 
@@ -200,11 +203,9 @@ class WorkoutManager: NSObject, ObservableObject {
         let isAuthorizedValue = await MainActor.run { self.isAuthorized }
         if !isAuthorizedValue {
             print("⚠️ Not authorized, requesting...")
-            await MainActor.run {
-                self.requestAuthorization()
-            }
-            try? await Task.sleep(for: .milliseconds(500))
-            
+            // ユーザーが権限ダイアログに応答するまで待機（500ms固定待機を廃止）
+            await self.requestAuthorization()
+
             #if !targetEnvironment(simulator)
             let stillNotAuthorized = await MainActor.run { !self.isAuthorized }
             if stillNotAuthorized {
@@ -1079,9 +1080,6 @@ class WorkoutManager: NSObject, ObservableObject {
                 // 一時停止中でない場合のみUI表示を更新
                 if !isPaused {
                     averageHeartRate = calculatedAverage
-                    print("💓 Heart rate: \(Int(heartRate)) bpm, average: \(Int(averageHeartRate)) bpm (samples: \(heartRateHistory.count))")
-                } else {
-                    print("⏸️ Paused - Internal heart rate updated: \(Int(heartRate)) bpm, average: \(Int(calculatedAverage)) bpm (UI frozen at \(Int(averageHeartRate)) bpm)")
                 }
             }
             
@@ -1096,16 +1094,9 @@ class WorkoutManager: NSObject, ObservableObject {
                 // 一時停止中でない場合のみUI表示を更新
                 if !isPaused {
                     activeCalories = newCalories
-                    print("🔥 Active calories: \(String(format: "%.1f", activeCalories)) kcal")
-                } else {
-                    print("⏸️ Paused - Internal calories updated: \(String(format: "%.1f", maxCalories)) kcal (UI frozen at \(String(format: "%.1f", activeCalories)) kcal)")
                 }
             } else if newCalories < maxCalories {
                 // 減少した場合は無視（最大値を維持）
-                let decreaseAmount = maxCalories - newCalories
-                if decreaseAmount > 0.1 {
-                    print("⚠️ Calories decreased from \(String(format: "%.1f", maxCalories)) to \(String(format: "%.1f", newCalories)), keeping max value")
-                }
             } else {
                 // 同じ値の場合、一時停止中でなければ明示的に設定
                 if !isPaused {
@@ -1132,7 +1123,6 @@ class WorkoutManager: NSObject, ObservableObject {
                         recentDistanceUpdates.removeFirst()
                     }
 
-                    print("⏸️ Paused - Internal distance updated: \(String(format: "%.2f", maxDistance))m (UI frozen at \(String(format: "%.2f", distance))m)")
                 }
             }
             
@@ -1150,13 +1140,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 // 一時停止中でない場合のみUI表示を更新
                 if !isPaused {
                     stepCount = newStepCount
-                    print("🚶 Step count: \(Int(stepCount)) steps")
-                } else {
-                    print("⏸️ Paused - Internal steps updated: \(Int(maxStepCount)) steps (UI frozen at \(Int(stepCount)) steps)")
                 }
-            } else if newStepCount < maxStepCount {
-                // 減少した場合は無視
-                print("⚠️ Step count data decreased (\(Int(newStepCount)) < \(Int(maxStepCount))), ignoring")
             }
             
         default:
@@ -1325,40 +1309,20 @@ class WorkoutManager: NSObject, ObservableObject {
             if displayDelta >= 1.0 {
                 lastDisplayedDistance = newDistance
                 distance = newDistance
-                print("✅ Distance UI UPDATED: \(String(format: "%.2f", distance))m (+\(String(format: "%.2f", displayDelta))m)")
-            }
-        } else if newDistance < maxDistance {
-            // 累積距離が減ることは通常ないので無視（最大値を維持）
-            let decreaseAmount = maxDistance - newDistance
-            if decreaseAmount > 2.0 {
-                print("⚠️ Distance data decreased (\(String(format: "%.2f", newDistance))m < \(String(format: "%.2f", maxDistance))m), ignoring")
             }
         }
     }
-    
+
     // MARK: - Step Count Update (単調増加を保証)
-    
+
     private func updateStepCount(_ newStepCount: Double) {
-        // 負の歩数は拒否
-        guard newStepCount >= 0 else {
-            print("⚠️ updateStepCount: Invalid negative count \(newStepCount), ignoring")
-            return
-        }
+        guard newStepCount >= 0 else { return }
 
         if newStepCount > maxStepCount {
-            // 内部の最大値は常に更新（スプリット記録などで使用）
             maxStepCount = newStepCount
-
-            // 一時停止中は UI 表示を凍結
             if !isPaused {
                 stepCount = newStepCount
-                print("🚶 Step count: \(Int(stepCount)) steps")
-            } else {
-                print("⏸️ Paused - Internal steps updated: \(Int(maxStepCount)) steps (UI frozen at \(Int(stepCount)) steps)")
             }
-        } else if newStepCount < maxStepCount {
-            // 減少した場合は無視
-            print("⚠️ Step count data decreased (\(Int(newStepCount)) < \(Int(maxStepCount))), ignoring")
         }
     }
     
@@ -1506,9 +1470,6 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                 print("🔄 Workout in unknown state: \(toState.rawValue)")
             }
             
-            // 状態変更後の確認
-            try? await Task.sleep(for: .milliseconds(100))
-            print("🔄 Final state - isPaused: \(isPaused), session.state: \(workoutSession.state.rawValue)")
         }
     }
     
@@ -1569,36 +1530,9 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
         didCollectDataOf collectedTypes: Set<HKSampleType>
     ) {
         Task { @MainActor in
-            print("📊 workoutBuilder didCollectDataOf called")
-            print("📊 Collected types count: \(collectedTypes.count)")
-            
             for type in collectedTypes {
-                guard let quantityType = type as? HKQuantityType else { 
-                    print("📊 Type is not a quantity type: \(type)")
-                    continue 
-                }
-                
+                guard let quantityType = type as? HKQuantityType else { continue }
                 let statistics = workoutBuilder.statistics(for: quantityType)
-                
-                // データ収集のログ
-                if quantityType == HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
-                    let meterUnit = HKUnit.meter()
-                    let newDistance = statistics?.sumQuantity()?.doubleValue(for: meterUnit) ?? 0
-                    print("📊 Distance collected: \(newDistance)m, Session state: \(session?.state.rawValue ?? -1)")
-                } else if quantityType == HKQuantityType.quantityType(forIdentifier: .heartRate) {
-                    let heartRateUnit = HKUnit.count().unitDivided(by: .minute())
-                    let heartRate = statistics?.mostRecentQuantity()?.doubleValue(for: heartRateUnit) ?? 0
-                    print("📊 Heart rate collected: \(heartRate) bpm")
-                } else if quantityType == HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
-                    let energyUnit = HKUnit.kilocalorie()
-                    let calories = statistics?.sumQuantity()?.doubleValue(for: energyUnit) ?? 0
-                    print("📊 Calories collected: \(calories) kcal")
-                } else if quantityType == HKQuantityType.quantityType(forIdentifier: .stepCount) {
-                    let stepUnit = HKUnit.count()
-                    let steps = statistics?.sumQuantity()?.doubleValue(for: stepUnit) ?? 0
-                    print("📊 Steps collected: \(steps) steps")
-                }
-                
                 updateForStatistics(statistics)
             }
         }
