@@ -17,6 +17,7 @@ struct WorkoutView: View {
     @State private var blinkTimer: Timer?
     @State private var isButtonVisible = true
     @State private var clockTriggerActive = false
+    @State private var clockShakeOffset: CGFloat = 0
 
     @Environment(\.scenePhase) private var scenePhase
     
@@ -42,6 +43,7 @@ struct WorkoutView: View {
                 .tag(2)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .offset(x: clockShakeOffset)
         .onChange(of: workoutManager.isPaused) { oldValue, newValue in
             print("🔄 isPaused changed from \(oldValue) to \(newValue)")
             // 点滅状態を確実に同期
@@ -71,14 +73,18 @@ struct WorkoutView: View {
             if workoutManager.isPaused {
                 startBlinking()
             }
-            // watchOSはセーフエリアゾーンのコンテンツが「変化」した時のみ時計位置を更新する。
-            // クロスフェード(0.3s)完了後にignoresSafeAreaをトグルして変化を作り時計を右上へ移動させる。
+            // watchOSはレイアウトに変化がある時のみ時計位置を右上へ更新する。
+            // 遷移完了後にTabView全体を±12ptで左右に微小振りして変化を検知させる。
+            // offsetが小さいためページ切り替えは起きず、視覚的にもほぼ気にならない。
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(350))
+                try? await Task.sleep(for: .milliseconds(500))
                 guard workoutManager.isWorkoutActive else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
-                    clockTriggerActive = true
-                }
+                clockTriggerActive = true
+                withAnimation(.easeInOut(duration: 0.08)) { clockShakeOffset = -12 }
+                try? await Task.sleep(for: .milliseconds(100))
+                withAnimation(.easeInOut(duration: 0.08)) { clockShakeOffset = 12 }
+                try? await Task.sleep(for: .milliseconds(100))
+                withAnimation(.easeInOut(duration: 0.08)) { clockShakeOffset = 0 }
             }
         }
         .onDisappear {
