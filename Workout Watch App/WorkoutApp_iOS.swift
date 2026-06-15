@@ -33,25 +33,47 @@ struct WorkoutPhoneApp: App {
 struct PhoneContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
     @State private var hasRequestedAuthorization = false
-    
+    @State private var showCountdown = false
+    @State private var pendingWorkoutType: HKWorkoutActivityType?
+    @State private var pendingWorkoutName = ""
+
     var body: some View {
-        Group {
-            if workoutManager.isWorkoutActive {
-                PhoneWorkoutView()
-                    .id("workout-view")
-                    .transition(.opacity)
-            } else {
-                PhoneWorkoutTypeSelectionView()
-                    .id("selection-view")
-                    .transition(.opacity)
+        ZStack {
+            Group {
+                if workoutManager.isWorkoutActive {
+                    PhoneWorkoutView()
+                        .id("workout-view")
+                        .transition(.opacity)
+                } else {
+                    PhoneWorkoutTypeSelectionView(onWorkoutSelected: startWorkoutWithCountdown)
+                        .id("selection-view")
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
+            .onChange(of: workoutManager.isWorkoutActive) { _, newValue in
+                if newValue {
+                    showCountdown = false
+                }
+            }
+
+            if showCountdown {
+                PhoneCountdownView(workoutName: pendingWorkoutName) {
+                    startPendingWorkout()
+                }
+                .ignoresSafeArea()
+                .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
+        .animation(.easeInOut(duration: 0.25), value: showCountdown)
+        .onChange(of: workoutManager.errorMessage) { _, newValue in
+            if newValue != nil {
+                showCountdown = false
+            }
+        }
         .onAppear {
-            // UIが表示された後に権限をリクエスト（初回のみ）
             if !hasRequestedAuthorization {
                 hasRequestedAuthorization = true
-                // わずかな遅延を入れてUIが完全に表示されてから実行
                 Task {
                     try? await Task.sleep(for: .seconds(0.5))
                     await workoutManager.requestAuthorization()
@@ -59,72 +81,70 @@ struct PhoneContentView: View {
             }
         }
     }
+
+    private func startWorkoutWithCountdown(type: HKWorkoutActivityType, name: String) {
+        pendingWorkoutType = type
+        pendingWorkoutName = name
+        showCountdown = true
+    }
+
+    private func startPendingWorkout() {
+        guard let type = pendingWorkoutType else { return }
+        let name = pendingWorkoutName
+        Task { @MainActor in
+            await workoutManager.startWorkout(activityType: type, workoutName: name)
+        }
+    }
 }
 
 struct PhoneWorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
-    @State private var isStarting = false
     @State private var showError = false
     @State private var showHistory = false
-    
+
+    var onWorkoutSelected: ((HKWorkoutActivityType, String) -> Void)?
+
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color, textColor: Color)] = [
         ("ウォーキング", .walking, "walking", .green, .green),
         ("ジョギング", .running, "jogging", .orange, .blue),
         ("ランニング", .running, "running", .red, .red)
     ]
-    
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                VStack(spacing: 24) {
-                    Spacer()
-                        .frame(height: 80)
-                    
-                    ForEach(workoutTypes, id: \.name) { workout in
-                        Button {
-                            startWorkout(type: workout.type, name: workout.name)
-                        } label: {
-                            HStack(spacing: 16) {
-                                Image(workout.icon)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 50, height: 50)
-                                    .foregroundStyle(workout.color)
-                                
-                                Text(workout.name)
-                                    .font(.system(size: 36, weight: .bold))
-                                    .foregroundStyle(workout.textColor)
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 20)
-                            .background(Color(.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
+            VStack(spacing: 24) {
+                Spacer()
+                    .frame(height: 80)
+
+                ForEach(workoutTypes, id: \.name) { workout in
+                    Button {
+                        guard !workoutManager.isWorkoutActive else { return }
+                        onWorkoutSelected?(workout.type, workout.name)
+                    } label: {
+                        HStack(spacing: 16) {
+                            Image(workout.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 50, height: 50)
+                                .foregroundStyle(workout.color)
+
+                            Text(workout.name)
+                                .font(.system(size: 36, weight: .bold))
+                                .foregroundStyle(workout.textColor)
+
+                            Spacer()
                         }
-                        .disabled(isStarting)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
-                    
-                    Spacer()
+                    .disabled(workoutManager.isWorkoutActive)
                 }
-                .padding(.horizontal, 20)
-                .opacity(isStarting ? 0.3 : 1.0)
-                .disabled(isStarting)
-                
-                if isStarting {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
-                        Text("ワークアウトを準備中...")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    }
-                    .padding(32)
-                    .background(Color.black.opacity(0.7))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
+
+                Spacer()
             }
+            .padding(.horizontal, 20)
             .navigationTitle("ワークアウト")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -148,58 +168,91 @@ struct PhoneWorkoutTypeSelectionView: View {
             .alert("エラー", isPresented: $showError) {
                 Button("OK") {
                     workoutManager.errorMessage = nil
-                    isStarting = false
                 }
             } message: {
                 if let errorMessage = workoutManager.errorMessage {
                     Text(errorMessage)
                 }
             }
-            .onChange(of: workoutManager.errorMessage) { oldValue, newValue in
+            .onChange(of: workoutManager.errorMessage) { _, newValue in
                 if newValue != nil {
                     showError = true
-                    isStarting = false
-                }
-            }
-            .onChange(of: workoutManager.isWorkoutActive) { oldValue, newValue in
-                if newValue {
-                    isStarting = false
                 }
             }
         }
     }
-    
-    private func startWorkout(type: HKWorkoutActivityType, name: String) {
-        guard !isStarting else { return }
-        guard !workoutManager.isWorkoutActive else { return }
-        
-        isStarting = true
-        
-        // タイムアウトタイマーを設定（10秒）
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(10))
-            
-            if isStarting {
-                print("⚠️ Workout start timeout - forcing UI update")
-                isStarting = false
-                
-                // タイムアウト後もワークアウトがアクティブでない場合はエラー表示
-                if !workoutManager.isWorkoutActive {
-                    workoutManager.errorMessage = "ワークアウトの開始がタイムアウトしました。もう一度お試しください。"
+}
+
+struct PhoneCountdownView: View {
+    let workoutName: String
+    let onFinish: () -> Void
+
+    @State private var count = 3
+    @State private var ringProgress: CGFloat = 1.0
+    @State private var isDismissed = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Text(workoutName)
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+
+                ZStack {
+                    // 背景リング
+                    Circle()
+                        .stroke(Color.green.opacity(0.25), lineWidth: 14)
+                        .frame(width: 220, height: 220)
+
+                    // カウントダウンリング
+                    Circle()
+                        .trim(from: 0, to: ringProgress)
+                        .stroke(
+                            Color.green,
+                            style: StrokeStyle(lineWidth: 14, lineCap: .round)
+                        )
+                        .frame(width: 220, height: 220)
+                        .rotationEffect(.degrees(-90))
+                        .id(count)
+
+                    // カウントダウン数字（タップでスキップ）
+                    Text("\(count)")
+                        .font(.system(size: 120, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
                 }
             }
         }
-        
+        .onTapGesture {
+            isDismissed = true
+            onFinish()
+        }
+        .onAppear {
+            startCountdown()
+        }
+    }
+
+    private func startCountdown() {
         Task { @MainActor in
-            await workoutManager.startWorkout(activityType: type, workoutName: name)
-            isStarting = false
+            for i in [3, 2, 1] {
+                if isDismissed { return }
+                count = i
+                ringProgress = 1.0
+                withAnimation(.linear(duration: 1.0)) {
+                    ringProgress = 0.0
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if isDismissed { return }
+            onFinish()
         }
     }
 }
 
 enum MetricCardType: String, Identifiable, CaseIterable {
     case distance, calories, heartRate, pace, steps, marathon
-    
+
     var id: String { rawValue }
 }
 

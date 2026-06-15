@@ -6,34 +6,67 @@
 //
 
 import SwiftUI
+import HealthKit
 
 struct ContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
-    // ワークアウト開始のたびにインクリメントし、WorkoutViewを確実に新規生成する
     @State private var workoutViewID = 0
+    @State private var showCountdown = false
+    @State private var pendingWorkoutType: HKWorkoutActivityType?
+    @State private var pendingWorkoutName = ""
 
     var body: some View {
-        Group {
-            if workoutManager.isWorkoutActive {
-                WorkoutView()
-                    .id(workoutViewID)
-                    .transition(.opacity)
-            } else {
-                WorkoutTypeSelectionView()
-                    .id("selection-view")
-                    .transition(.opacity)
+        ZStack {
+            Group {
+                if workoutManager.isWorkoutActive {
+                    WorkoutView()
+                        .id(workoutViewID)
+                        .transition(.opacity)
+                } else {
+                    WorkoutTypeSelectionView(onWorkoutSelected: startWorkoutWithCountdown)
+                        .id("selection-view")
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
+            .onChange(of: workoutManager.isWorkoutActive) { _, newValue in
+                if newValue {
+                    workoutViewID += 1
+                    showCountdown = false
+                }
+            }
+
+            if showCountdown {
+                WatchCountdownView {
+                    startPendingWorkout()
+                }
+                .ignoresSafeArea()
+                .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: workoutManager.isWorkoutActive)
-        .onChange(of: workoutManager.isWorkoutActive) { _, newValue in
-            if newValue {
-                workoutViewID += 1
+        .animation(.easeInOut(duration: 0.25), value: showCountdown)
+        .onChange(of: workoutManager.errorMessage) { _, newValue in
+            if newValue != nil {
+                showCountdown = false
             }
         }
         .task {
-            // アプリ起動時に権限リクエストとCoreMotion初期化を先行実行し、
-            // 初回ワークアウト開始の遅延・失敗を防ぐ
+            // アプリ起動時に権限リクエストとCoreMotion初期化を先行実行
             await workoutManager.prewarm()
+        }
+    }
+
+    private func startWorkoutWithCountdown(type: HKWorkoutActivityType, name: String) {
+        pendingWorkoutType = type
+        pendingWorkoutName = name
+        showCountdown = true
+    }
+
+    private func startPendingWorkout() {
+        guard let type = pendingWorkoutType else { return }
+        let name = pendingWorkoutName
+        Task { @MainActor in
+            await workoutManager.startWorkout(activityType: type, workoutName: name)
         }
     }
 }

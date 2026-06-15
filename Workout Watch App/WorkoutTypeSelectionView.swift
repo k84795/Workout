@@ -10,9 +10,10 @@ import HealthKit
 
 struct WorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
-    @State private var isStarting = false
     @State private var showError = false
     @State private var showHistory = false
+
+    var onWorkoutSelected: ((HKWorkoutActivityType, String) -> Void)?
     
     let workoutTypes: [(name: String, type: HKWorkoutActivityType, icon: String, color: Color)] = [
         ("ウォーキング", .walking, "walking", .green),
@@ -26,7 +27,8 @@ struct WorkoutTypeSelectionView: View {
                 List {
                     ForEach(workoutTypes, id: \.name) { workout in
                         Button {
-                            startWorkout(type: workout.type, name: workout.name)
+                            guard !workoutManager.isWorkoutActive else { return }
+                            onWorkoutSelected?(workout.type, workout.name)
                         } label: {
                             HStack(spacing: 8) {
                                 Image(workout.icon)
@@ -42,7 +44,7 @@ struct WorkoutTypeSelectionView: View {
                             }
                             .padding(.vertical, 2)
                         }
-                        .disabled(isStarting)
+                        .disabled(workoutManager.isWorkoutActive)
                         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                     }
                 }
@@ -70,64 +72,13 @@ struct WorkoutTypeSelectionView: View {
                 Text(errorMessage)
             }
         }
-        .onChange(of: workoutManager.errorMessage) { oldValue, newValue in
+        .onChange(of: workoutManager.errorMessage) { _, newValue in
             if newValue != nil {
                 showError = true
             }
         }
     }
     
-    private func startWorkout(type: HKWorkoutActivityType, name: String) {
-        guard !isStarting else { 
-            print("⚠️ Already starting, ignoring tap")
-            return 
-        }
-        
-        guard !workoutManager.isWorkoutActive else {
-            print("⚠️ Workout already active, ignoring tap")
-            return
-        }
-        
-        print("🟢 ========================================")
-        print("🟢 Button tapped: \(name)")
-        print("🟢 Current isWorkoutActive: \(workoutManager.isWorkoutActive)")
-        print("🟢 Current session exists: \(workoutManager.session != nil)")
-        print("🟢 ========================================")
-        
-        isStarting = true
-        
-        Task { @MainActor in
-            print("🟢 Starting workout task...")
-            
-            await workoutManager.startWorkout(activityType: type, workoutName: name)
-            
-            print("🟢 ========================================")
-            print("🟢 After startWorkout completed")
-            print("🟢 isWorkoutActive: \(workoutManager.isWorkoutActive)")
-            print("🟢 session exists: \(workoutManager.session != nil)")
-            print("🟢 session state: \(workoutManager.session?.state.rawValue ?? -1)")
-            print("🟢 builder exists: \(workoutManager.builder != nil)")
-            print("🟢 errorMessage: \(workoutManager.errorMessage ?? "nil")")
-            print("🟢 ========================================")
-            
-            // 追加の待機時間を入れてUIの更新を確実にする
-            try? await Task.sleep(for: .milliseconds(100))
-            
-            // ワークアウトが正常に開始されたか確認
-            if workoutManager.isWorkoutActive {
-                print("🟢 ✅ Workout started successfully!")
-            } else {
-                print("⚠️ ❌ Workout did not start")
-                if let error = workoutManager.errorMessage {
-                    print("⚠️ Error: \(error)")
-                }
-            }
-            
-            // 起動状態をリセット
-            isStarting = false
-            print("🟢 isStarting reset to false")
-        }
-    }
 }
 
 struct WatchWorkoutHistoryView: View {
@@ -378,6 +329,71 @@ struct WatchWorkoutLapDetailView: View {
         if time == fastest { return .red }
         if time == slowest && fastest != slowest { return .blue }
         return .green
+    }
+}
+
+struct WatchCountdownView: View {
+    let onFinish: () -> Void
+
+    @State private var count = 3
+    @State private var ringProgress: CGFloat = 1.0
+    @State private var isDismissed = false
+
+    private var sizeScale: CGFloat {
+        let screenWidth = WKInterfaceDevice.current().screenBounds.width
+        return screenWidth / 162.0
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            ZStack {
+                // 背景リング
+                Circle()
+                    .stroke(Color.green.opacity(0.25), lineWidth: 10 * sizeScale)
+                    .frame(width: 120 * sizeScale, height: 120 * sizeScale)
+
+                // カウントダウンリング
+                Circle()
+                    .trim(from: 0, to: ringProgress)
+                    .stroke(
+                        Color.green,
+                        style: StrokeStyle(lineWidth: 10 * sizeScale, lineCap: .round)
+                    )
+                    .frame(width: 120 * sizeScale, height: 120 * sizeScale)
+                    .rotationEffect(.degrees(-90))
+                    .id(count)
+
+                // カウントダウン数字（タップでスキップ）
+                Text("\(count)")
+                    .font(.system(size: 64 * sizeScale, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+        }
+        .onTapGesture {
+            isDismissed = true
+            onFinish()
+        }
+        .onAppear {
+            startCountdown()
+        }
+    }
+
+    private func startCountdown() {
+        Task { @MainActor in
+            for i in [3, 2, 1] {
+                if isDismissed { return }
+                count = i
+                ringProgress = 1.0
+                withAnimation(.linear(duration: 1.0)) {
+                    ringProgress = 0.0
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if isDismissed { return }
+            onFinish()
+        }
     }
 }
 
