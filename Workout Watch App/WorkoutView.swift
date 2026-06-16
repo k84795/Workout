@@ -12,6 +12,7 @@ struct WorkoutView: View {
     @State private var currentPage = 1
     @State private var isTogglingPause = false
     @State private var isEndingWorkout = false
+    @State private var verticalPage = 1
     
     // タイマーベースの点滅制御
     @State private var blinkTimer: Timer?
@@ -34,9 +35,15 @@ struct WorkoutView: View {
             controlView
                 .tag(0)
             
-            // メインページ（1番目・中央）
-            mainWorkoutView
-                .tag(1)
+            // メインページ（1番目・中央）: 縦TabViewでスプリット(上)とワークアウト(下)を配置
+            TabView(selection: $verticalPage) {
+                splitTimesView
+                    .tag(0)
+                mainWorkoutView
+                    .tag(1)
+            }
+            .tabViewStyle(.verticalPage)
+            .tag(1)
             
             // ミュージックコントロールページ（2番目・右側）
             MusicControlView()
@@ -66,6 +73,7 @@ struct WorkoutView: View {
         }
         .onAppear {
             currentPage = 1
+            verticalPage = 1
             clockTriggerActive = false
             isTogglingPause = false
             isEndingWorkout = false
@@ -94,6 +102,105 @@ struct WorkoutView: View {
         }
     }
     
+    // スプリット記録画面（下スワイプで表示）
+    private var splitTimesView: some View {
+        GeometryReader { geometry in
+            // ヘッダー・ギャップ・フッターを明示的に分離
+            let topSpaceH: CGFloat = 30  // 画面最上部からの余白
+            let textH: CGFloat = 24      // 「スプリット」20ptフォントの高さ
+            let gapH: CGFloat = 8        // タイトルと記録グリッドの間隔
+            let footerH: CGFloat = 26
+            let rowH = (geometry.size.height - topSpaceH - textH - gapH - footerH) / 5.0
+            let splits = workoutManager.lapTimes
+            let fastest: Int? = splits.count > 1
+                ? splits.indices.min(by: { splits[$0] < splits[$1] })
+                : nil
+            let slowest: Int? = splits.count > 1
+                ? splits.indices.max(by: { splits[$0] < splits[$1] })
+                : nil
+
+            VStack(spacing: 0) {
+                // 画面最上部からの余白 40pt
+                Color.clear.frame(height: topSpaceH)
+
+                // タイトル（最大フォント）
+                Text("スプリット")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: textH)
+
+                // タイトルと記録の間の余白 8pt
+                Color.clear.frame(height: gapH)
+
+                // スプリットグリッド（ScrollViewReader で最新行へ自動スクロール）
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            if splits.isEmpty {
+                                Text("記録なし")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: rowH * 3)
+                            } else {
+                                let totalRows = (splits.count + 4) / 5
+                                ForEach(0..<totalRows, id: \.self) { row in
+                                    HStack(spacing: 0) {
+                                        ForEach(0..<5, id: \.self) { col in
+                                            let i = row * 5 + col
+                                            if i < splits.count {
+                                                VStack(spacing: 0) {
+                                                    Text("\(i + 1)km")
+                                                        .font(.system(size: 14, weight: .medium))
+                                                        .foregroundStyle(.secondary)
+                                                        .lineLimit(1)
+                                                    Text(formatSplitTime(splits[i]))
+                                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                                        .foregroundStyle(splitColor(i, fastest: fastest, slowest: slowest))
+                                                        .minimumScaleFactor(0.6)
+                                                        .lineLimit(1)
+                                                }
+                                                .frame(maxWidth: .infinity, minHeight: rowH, maxHeight: rowH)
+                                            } else {
+                                                Color.clear
+                                                    .frame(maxWidth: .infinity, minHeight: rowH, maxHeight: rowH)
+                                            }
+                                        }
+                                    }
+                                    .id("row_\(row)")
+                                }
+                            }
+                        }
+                    }
+                    .onChange(of: workoutManager.lapTimes.count) { _, newCount in
+                        guard newCount > 0 else { return }
+                        let lastRow = (newCount - 1) / 5
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("row_\(lastRow)", anchor: .bottom)
+                        }
+                    }
+                }
+
+                // フッター（大きめの余白）
+                Color.clear.frame(height: footerH)
+            }
+        }
+        .ignoresSafeArea(edges: [.top, .bottom])
+    }
+
+    private func splitColor(_ index: Int, fastest: Int?, slowest: Int?) -> Color {
+        if fastest == index { return .red }
+        if slowest == index { return .blue }
+        return .green
+    }
+
+    private func formatSplitTime(_ seconds: TimeInterval) -> String {
+        let m = Int(seconds) / 60
+        let s = Int(seconds) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
     private func calculateMarathonPrediction() -> String {
         let marathonDistance = 42195.0
         let currentDistance = workoutManager.distance

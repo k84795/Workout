@@ -883,10 +883,10 @@ class WorkoutManager: NSObject, ObservableObject {
     private func startTimer() {
         // 既存のタイマーがあれば停止
         stopTimer()
-        
+
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            
+
             // セッションの状態に関わらず経過時間を更新（一時停止中も表示するため）
             Task { @MainActor in
                 guard let session = self.session else { return }
