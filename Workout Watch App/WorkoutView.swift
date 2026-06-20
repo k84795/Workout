@@ -75,6 +75,13 @@ struct WorkoutView: View {
                 }
             }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            // 手首を上げて画面が点灯した時、必ずメインワークアウト画面に戻る
+            if newPhase == .active && workoutManager.isWorkoutActive {
+                currentPage = 1
+                verticalPage = 1
+            }
+        }
         .onAppear {
             currentPage = 1
             verticalPage = 1
