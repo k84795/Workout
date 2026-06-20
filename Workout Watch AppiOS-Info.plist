@@ -37,5 +37,7 @@
 	<string>ワークアウトデータを記録するために、HealthKitへのアクセスが必要です。</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>ワークアウトデータを保存するために、HealthKitへの書き込みが必要です。</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ワークアウト中の現在位置をマップに表示するために位置情報へのアクセスが必要です。</string>
 </dict>
 </plist>

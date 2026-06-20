@@ -11,6 +11,8 @@ import MediaPlayer
 import AVFoundation
 import WatchConnectivity
 import HealthKit
+import MapKit
+import CoreLocation
 
 @main
 struct WorkoutPhoneApp: App {
@@ -298,12 +300,15 @@ struct PhoneWorkoutView: View {
             TabView(selection: $selectedTab) {
                 lapTimesView
                     .tag(0)
-                
+
                 mainWorkoutView
                     .tag(1)
-                
+
                 PhoneMusicControlView()
                     .tag(2)
+
+                PhoneWorkoutMapView()
+                    .tag(3)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             
@@ -356,7 +361,7 @@ struct PhoneWorkoutView: View {
                         label: "スプリット",
                         isSelected: selectedTab == 0
                     )
-                    
+
                     // ワークアウトタブ
                     tabButton(
                         index: 1,
@@ -364,13 +369,21 @@ struct PhoneWorkoutView: View {
                         label: "ワークアウト",
                         isSelected: selectedTab == 1
                     )
-                    
+
                     // 音楽タブ
                     tabButton(
                         index: 2,
                         icon: "music.note",
                         label: "ミュージック",
                         isSelected: selectedTab == 2
+                    )
+
+                    // マップタブ
+                    tabButton(
+                        index: 3,
+                        icon: "map.fill",
+                        label: "マップ",
+                        isSelected: selectedTab == 3
                     )
                 }
                 .padding(.horizontal, 16)
@@ -415,6 +428,7 @@ struct PhoneWorkoutView: View {
         case 0: return .blue
         case 1: return .green
         case 2: return .pink
+        case 3: return .teal
         default: return .blue
         }
     }
@@ -2351,5 +2365,151 @@ struct PhoneWorkoutLapDetailView: View {
         if time == fastest { return .red }
         if time == slowest && fastest != slowest { return .blue }
         return .green
+    }
+}
+
+// 位置情報マネージャー（iOS用）
+@MainActor
+private class PhoneLocationManager: NSObject, ObservableObject {
+    @Published var currentLocation: CLLocation?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+
+    private let clManager = CLLocationManager()
+
+    override init() {
+        super.init()
+        clManager.delegate = self
+        clManager.desiredAccuracy = kCLLocationAccuracyBest
+        clManager.distanceFilter = 5
+        authorizationStatus = clManager.authorizationStatus
+    }
+
+    func requestAndStart() {
+        clManager.requestWhenInUseAuthorization()
+        clManager.startUpdatingLocation()
+    }
+}
+
+extension PhoneLocationManager: CLLocationManagerDelegate {
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in self.currentLocation = location }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor in
+            self.authorizationStatus = status
+            if status == .authorizedWhenInUse || status == .authorizedAlways {
+                manager.startUpdatingLocation()
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("📍 Location error: \(error.localizedDescription)")
+    }
+}
+
+// ワークアウト中マップビュー（iPhone用）
+struct PhoneWorkoutMapView: View {
+    @StateObject private var locationManager = PhoneLocationManager()
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+    @Namespace private var mapScope
+
+    var body: some View {
+        ZStack {
+            if locationManager.authorizationStatus == .denied ||
+               locationManager.authorizationStatus == .restricted {
+                VStack(spacing: 16) {
+                    Image(systemName: "location.slash.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                    Text("位置情報が無効です")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Text("設定アプリから位置情報を許可してください")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Map(position: $cameraPosition, scope: mapScope) {
+                    if let location = locationManager.currentLocation {
+                        Annotation("", coordinate: location.coordinate) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 44, height: 44)
+                                    .shadow(color: .black.opacity(0.3), radius: 4)
+                                Image(systemName: "figure.run")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .annotationTitles(.hidden)
+                    }
+                }
+                .mapStyle(.standard)
+                .ignoresSafeArea(edges: .top)
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    zoomSpan = context.region.span
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    VStack(alignment: .trailing, spacing: 10) {
+                        // 縮尺（右下）
+                        MapScaleView(scope: mapScope)
+                            .mapControlVisibility(.visible)
+
+                        // 現在地に戻るボタン
+                        Button {
+                            guard let loc = locationManager.currentLocation else { return }
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                cameraPosition = .region(MKCoordinateRegion(
+                                    center: loc.coordinate,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+                                ))
+                            }
+                        } label: {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(.blue)
+                                .frame(width: 44, height: 44)
+                                .background(.regularMaterial)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.15), radius: 4)
+                        }
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 24)
+                }
+
+                if locationManager.currentLocation == nil {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("位置情報を取得中...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
+                }
+            }
+        }
+        .onChange(of: locationManager.currentLocation) { _, location in
+            guard let loc = location else { return }
+            withAnimation(.linear(duration: 0.5)) {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: zoomSpan
+                ))
+            }
+        }
+        .onAppear {
+            locationManager.requestAndStart()
+        }
     }
 }

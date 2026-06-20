@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
@@ -35,12 +36,14 @@ struct WorkoutView: View {
             controlView
                 .tag(0)
             
-            // メインページ（1番目・中央）: 縦TabViewでスプリット(上)とワークアウト(下)を配置
+            // メインページ（1番目・中央）: 縦TabViewでスプリット(上)、ワークアウト(中)、マップ(下)を配置
             TabView(selection: $verticalPage) {
                 splitTimesView
                     .tag(0)
                 mainWorkoutView
                     .tag(1)
+                WatchWorkoutMapView(verticalPage: $verticalPage)
+                    .tag(2)
             }
             .tabViewStyle(.verticalPage)
             .tag(1)
@@ -568,6 +571,122 @@ struct WatchMarathonCell: View {
         .padding(.horizontal, 2)
         .background(Color.cyan.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+// ワークアウト中マップビュー（Apple Watch用）
+struct WatchWorkoutMapView: View {
+    @Binding var verticalPage: Int
+    @StateObject private var locationManager = LocationManager()
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+
+    var body: some View {
+        ZStack {
+            if locationManager.authorizationStatus == .denied ||
+               locationManager.authorizationStatus == .restricted {
+                VStack(spacing: 8) {
+                    Image(systemName: "location.slash.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.secondary)
+                    Text("位置情報が\n無効です")
+                        .font(.system(size: 13))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // マップ本体（Digital Crown・ピンチでズーム、ドラッグでパン）
+                Map(position: $cameraPosition) {
+                    if let location = locationManager.currentLocation {
+                        Annotation("", coordinate: location.coordinate) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 30, height: 30)
+                                    .shadow(color: .black.opacity(0.3), radius: 3)
+                                Image(systemName: "figure.run")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .annotationTitles(.hidden)
+                    }
+                }
+                .mapStyle(.standard)
+                .ignoresSafeArea()
+                .onMapCameraChange(frequency: .onEnd) { context in
+                    zoomSpan = context.region.span
+                }
+
+                // ▲ボタン（上部固定：ワークアウト画面に戻る）
+                VStack {
+                    Button {
+                        withAnimation { verticalPage = 1 }
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 60, height: 18)
+                            .background(.black.opacity(0.5))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 30)
+                    Spacer()
+                }
+
+                // 縮尺テキスト（右下固定）
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text(watchScaleLabel(for: zoomSpan))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.black.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                            .padding(.trailing, 4)
+                            .padding(.bottom, 6)
+                    }
+                }
+
+                // 位置取得中インジケーター
+                if locationManager.currentLocation == nil {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.white)
+                        Text("位置情報を\n取得中...")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+        }
+        .onChange(of: locationManager.currentLocation) { _, location in
+            guard let loc = location else { return }
+            withAnimation(.linear(duration: 0.5)) {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: zoomSpan
+                ))
+            }
+        }
+        .onAppear {
+            locationManager.requestAndStart()
+        }
+    }
+
+    // 現在のズームスパンから縮尺テキストを生成
+    private func watchScaleLabel(for span: MKCoordinateSpan) -> String {
+        let metersPerDegree = 111_000.0
+        let widthMeters = span.latitudeDelta * metersPerDegree * 0.25
+        let steps = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
+        let nice = steps.min(by: { abs(Double($0) - widthMeters) < abs(Double($1) - widthMeters) }) ?? 1
+        return nice >= 1000 ? "\(nice / 1000) km" : "\(nice) m"
     }
 }
 
