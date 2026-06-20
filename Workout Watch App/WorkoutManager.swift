@@ -14,7 +14,7 @@ import AVFoundation
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
     let healthStore = HKHealthStore()
-    
+
     // ワークアウトセッション
     @Published var session: HKWorkoutSession?
     @Published var builder: HKLiveWorkoutBuilder?
@@ -450,7 +450,7 @@ class WorkoutManager: NSObject, ObservableObject {
             await MainActor.run {
                 self.startTimer()
             }
-            
+
             #if targetEnvironment(simulator)
             // シミュレータ用の模擬データ生成を開始
             print("⚠️ Simulator: Starting mock data generation")
@@ -727,7 +727,7 @@ class WorkoutManager: NSObject, ObservableObject {
             print("🔴 Stopping all timers and monitoring...")
             self.stopTimer()
             self.stopStepCountMonitoring()
-            
+
             #if targetEnvironment(simulator)
             self.stopSimulatorDataGeneration()
             #endif

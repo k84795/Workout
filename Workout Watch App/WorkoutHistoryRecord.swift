@@ -7,7 +7,17 @@
 //
 
 import Foundation
+import CoreLocation
 import WatchConnectivity
+
+struct RouteCoordinate: Codable {
+    let latitude: Double
+    let longitude: Double
+
+    var asCLLocationCoordinate2D: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
 
 struct WorkoutHistoryRecord: Codable, Identifiable {
     let id: UUID
@@ -19,9 +29,10 @@ struct WorkoutHistoryRecord: Codable, Identifiable {
     let averageHeartRate: Double
     let stepCount: Double
     let lapTimes: [TimeInterval]
+    var routeCoordinates: [RouteCoordinate]
     var deviceSource: String?
 
-    init(workoutName: String, elapsedTime: TimeInterval, distance: Double, activeCalories: Double, averageHeartRate: Double, stepCount: Double, lapTimes: [TimeInterval], deviceSource: String? = nil) {
+    init(workoutName: String, elapsedTime: TimeInterval, distance: Double, activeCalories: Double, averageHeartRate: Double, stepCount: Double, lapTimes: [TimeInterval], routeCoordinates: [RouteCoordinate] = [], deviceSource: String? = nil) {
         self.id = UUID()
         self.workoutName = workoutName
         self.date = Date()
@@ -31,6 +42,7 @@ struct WorkoutHistoryRecord: Codable, Identifiable {
         self.averageHeartRate = averageHeartRate
         self.stepCount = stepCount
         self.lapTimes = lapTimes
+        self.routeCoordinates = routeCoordinates
         self.deviceSource = deviceSource
     }
 

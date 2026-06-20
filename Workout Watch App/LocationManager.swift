@@ -12,8 +12,10 @@ import Combine
 class LocationManager: NSObject, ObservableObject {
     @Published var currentLocation: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var routeCoordinates: [CLLocationCoordinate2D] = []
 
     private let clManager = CLLocationManager()
+    private var isTrackingRoute = false
 
     override init() {
         super.init()
@@ -27,6 +29,15 @@ class LocationManager: NSObject, ObservableObject {
         clManager.requestWhenInUseAuthorization()
         clManager.startUpdatingLocation()
     }
+
+    func startRouteTracking() {
+        routeCoordinates = []
+        isTrackingRoute = true
+    }
+
+    func stopRouteTracking() {
+        isTrackingRoute = false
+    }
 }
 
 extension LocationManager: CLLocationManagerDelegate {
@@ -34,6 +45,9 @@ extension LocationManager: CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         Task { @MainActor in
             self.currentLocation = location
+            if self.isTrackingRoute && location.horizontalAccuracy > 0 && location.horizontalAccuracy <= 50 {
+                self.routeCoordinates.append(location.coordinate)
+            }
         }
     }
 

@@ -7,6 +7,8 @@
 
 import SwiftUI
 import HealthKit
+import MapKit
+import CoreLocation
 
 struct WorkoutTypeSelectionView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
@@ -291,6 +293,7 @@ struct WatchWorkoutHistoryView: View {
 
 struct WatchWorkoutLapDetailView: View {
     let record: WorkoutHistoryRecord
+    @State private var verticalPage = 0
 
     private var sizeScale: CGFloat {
         let screenWidth = WKInterfaceDevice.current().screenBounds.width
@@ -298,6 +301,52 @@ struct WatchWorkoutLapDetailView: View {
     }
 
     var body: some View {
+        let hasRoute = !record.routeCoordinates.isEmpty
+        if hasRoute {
+            TabView(selection: $verticalPage) {
+                ZStack {
+                    lapListView
+                    VStack(spacing: 0) {
+                        Spacer()
+                        ZStack {
+                            Color.black.opacity(0.001)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .contentShape(Rectangle())
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 90, height: 28)
+                                .background(.black.opacity(0.55))
+                                .clipShape(Capsule())
+                        }
+                        .highPriorityGesture(
+                            TapGesture().onEnded {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    verticalPage = 1
+                                }
+                            }
+                        )
+                    }
+                    .ignoresSafeArea(edges: .bottom)
+                }
+                .navigationTitle("スプリット")
+                .tag(0)
+                WatchHistoryRouteMapView(
+                    coordinates: record.routeCoordinates.map { $0.asCLLocationCoordinate2D },
+                    verticalPage: $verticalPage
+                )
+                .navigationTitle("")
+                .tag(1)
+            }
+            .tabViewStyle(.verticalPage)
+        } else {
+            lapListView
+                .navigationTitle("スプリット")
+        }
+    }
+
+    private var lapListView: some View {
         List {
             if record.lapTimes.isEmpty {
                 Text("スプリット記録はありません")
@@ -317,7 +366,6 @@ struct WatchWorkoutLapDetailView: View {
                 }
             }
         }
-        .navigationTitle("スプリット")
     }
 
     private func formatLapTime(_ time: TimeInterval) -> String {
@@ -334,6 +382,108 @@ struct WatchWorkoutLapDetailView: View {
         if time == fastest { return .red }
         if time == slowest && fastest != slowest { return .blue }
         return .green
+    }
+}
+
+// 履歴ルートマップビュー
+struct WatchHistoryRouteMapView: View {
+    let coordinates: [CLLocationCoordinate2D]
+    @Binding var verticalPage: Int
+    @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var crownValue: Double = 0.0
+    @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+    @State private var currentCenter: CLLocationCoordinate2D?
+
+    var body: some View {
+        ZStack {
+            Map(position: $cameraPosition) {
+                if coordinates.count > 1 {
+                    MapPolyline(coordinates: coordinates)
+                        .stroke(.blue, lineWidth: 3)
+                }
+                if let first = coordinates.first {
+                    Annotation("", coordinate: first) {
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+                    }
+                    .annotationTitles(.hidden)
+                }
+                if let last = coordinates.last, coordinates.count > 1 {
+                    Annotation("", coordinate: last) {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+                    }
+                    .annotationTitles(.hidden)
+                }
+            }
+            .mapStyle(.standard)
+            .ignoresSafeArea()
+            .onMapCameraChange(frequency: .onEnd) { context in
+                zoomSpan = context.region.span
+                currentCenter = context.region.center
+            }
+
+            // ▲ボタン（画面絶対最上端）スプリット記録へ戻る
+            VStack(spacing: 0) {
+                ZStack {
+                    Color.black.opacity(0.001)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 90, height: 28)
+                        .background(.black.opacity(0.55))
+                        .clipShape(Capsule())
+                }
+                .highPriorityGesture(
+                    TapGesture().onEnded {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            verticalPage = 0
+                        }
+                    }
+                )
+                Spacer()
+            }
+            .ignoresSafeArea(edges: .top)
+        }
+        .focusable()
+        .digitalCrownRotation($crownValue, from: -1000.0, through: 1000.0, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: false)
+        .onChange(of: crownValue) { oldValue, newValue in
+            let delta = newValue - oldValue
+            let zoomFactor = pow(2.0, -delta * 0.05)
+            let newLat = max(0.0005, min(0.5, zoomSpan.latitudeDelta * zoomFactor))
+            let newLon = max(0.0005, min(0.5, zoomSpan.longitudeDelta * zoomFactor))
+            zoomSpan = MKCoordinateSpan(latitudeDelta: newLat, longitudeDelta: newLon)
+            if let center = currentCenter {
+                cameraPosition = .region(MKCoordinateRegion(center: center, span: zoomSpan))
+            }
+        }
+        .onAppear {
+            guard !coordinates.isEmpty else { return }
+            let lats = coordinates.map { $0.latitude }
+            let lons = coordinates.map { $0.longitude }
+            let minLat = lats.min()!
+            let maxLat = lats.max()!
+            let minLon = lons.min()!
+            let maxLon = lons.max()!
+            let center = CLLocationCoordinate2D(
+                latitude: (minLat + maxLat) / 2,
+                longitude: (minLon + maxLon) / 2
+            )
+            currentCenter = center
+            let span = MKCoordinateSpan(
+                latitudeDelta: max((maxLat - minLat) * 1.5, 0.002),
+                longitudeDelta: max((maxLon - minLon) * 1.5, 0.002)
+            )
+            zoomSpan = span
+            cameraPosition = .region(MKCoordinateRegion(center: center, span: span))
+        }
     }
 }
 

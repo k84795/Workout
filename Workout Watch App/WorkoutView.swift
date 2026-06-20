@@ -10,11 +10,12 @@ import MapKit
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
+    @StateObject private var locationManager = LocationManager()
     @State private var currentPage = 1
     @State private var isTogglingPause = false
     @State private var isEndingWorkout = false
     @State private var verticalPage = 1
-    
+
     // タイマーベースの点滅制御
     @State private var blinkTimer: Timer?
     @State private var isButtonVisible = true
@@ -42,7 +43,7 @@ struct WorkoutView: View {
                     .tag(0)
                 mainWorkoutView
                     .tag(1)
-                WatchWorkoutMapView(verticalPage: $verticalPage)
+                WatchWorkoutMapView(verticalPage: $verticalPage, locationManager: locationManager)
                     .tag(2)
             }
             .tabViewStyle(.verticalPage)
@@ -81,6 +82,9 @@ struct WorkoutView: View {
             isTogglingPause = false
             isEndingWorkout = false
             isButtonVisible = true
+            // ルート追跡開始
+            locationManager.requestAndStart()
+            locationManager.startRouteTracking()
             if workoutManager.isPaused {
                 startBlinking()
             }
@@ -441,6 +445,10 @@ struct WorkoutView: View {
 
         // ワークアウト履歴のスナップショットを即座に取得（後続のリセットに備える）
         let shouldSaveRecord = workoutManager.elapsedTime >= 10
+        let capturedRoute = locationManager.routeCoordinates.map {
+            RouteCoordinate(latitude: $0.latitude, longitude: $0.longitude)
+        }
+        locationManager.stopRouteTracking()
         let record: WorkoutHistoryRecord? = shouldSaveRecord ? WorkoutHistoryRecord(
             workoutName: workoutManager.workoutName,
             elapsedTime: workoutManager.elapsedTime,
@@ -449,6 +457,7 @@ struct WorkoutView: View {
             averageHeartRate: workoutManager.averageHeartRate,
             stepCount: workoutManager.stepCount,
             lapTimes: workoutManager.lapTimes,
+            routeCoordinates: capturedRoute,
             deviceSource: "watch"
         ) : nil
 
@@ -577,9 +586,10 @@ struct WatchMarathonCell: View {
 // ワークアウト中マップビュー（Apple Watch用）
 struct WatchWorkoutMapView: View {
     @Binding var verticalPage: Int
-    @StateObject private var locationManager = LocationManager()
+    @ObservedObject var locationManager: LocationManager
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+    @State private var crownValue: Double = 0.0
 
     var body: some View {
         ZStack {
@@ -596,8 +606,14 @@ struct WatchWorkoutMapView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // マップ本体（Digital Crown・ピンチでズーム、ドラッグでパン）
+                // マップ本体（リアルタイム軌跡付き）
                 Map(position: $cameraPosition) {
+                    // 走行軌跡を青色で表示
+                    if locationManager.routeCoordinates.count > 1 {
+                        MapPolyline(coordinates: locationManager.routeCoordinates)
+                            .stroke(.blue, lineWidth: 4)
+                    }
+                    // 現在地アイコン
                     if let location = locationManager.currentLocation {
                         Annotation("", coordinate: location.coordinate) {
                             ZStack {
@@ -619,22 +635,33 @@ struct WatchWorkoutMapView: View {
                     zoomSpan = context.region.span
                 }
 
-                // ▲ボタン（上部固定：ワークアウト画面に戻る）
-                VStack {
-                    Button {
-                        withAnimation { verticalPage = 1 }
-                    } label: {
+                // ▲ボタン（画面絶対最上端・システムクロック位置まで）
+                // Mapのジェスチャー横取りを防ぐため highPriorityGesture を使用
+                VStack(spacing: 0) {
+                    ZStack {
+                        // タッチ受信用の不透明極薄レイヤー（Color.clearはhit-testが通らないため）
+                        Color.black.opacity(0.001)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .contentShape(Rectangle())
+                        // ▲ボタン外観
                         Image(systemName: "chevron.up")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.white)
-                            .frame(width: 60, height: 18)
-                            .background(.black.opacity(0.5))
+                            .frame(width: 90, height: 28)
+                            .background(.black.opacity(0.55))
                             .clipShape(Capsule())
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 30)
+                    .highPriorityGesture(
+                        TapGesture().onEnded {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                verticalPage = 1
+                            }
+                        }
+                    )
                     Spacer()
                 }
+                .ignoresSafeArea(edges: .top)
 
                 // 縮尺テキスト（右下固定）
                 VStack {
@@ -676,7 +703,29 @@ struct WatchWorkoutMapView: View {
             }
         }
         .onAppear {
-            locationManager.requestAndStart()
+            // 画面表示・再表示のたびに100m縮尺・現在地へリセット
+            let span100m = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+            zoomSpan = span100m
+            if let loc = locationManager.currentLocation {
+                cameraPosition = .region(MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: span100m
+                ))
+            } else {
+                cameraPosition = .automatic
+            }
+        }
+        .focusable()
+        .digitalCrownRotation($crownValue, from: -1000.0, through: 1000.0, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: false)
+        .onChange(of: crownValue) { oldValue, newValue in
+            let delta = newValue - oldValue
+            let zoomFactor = pow(2.0, -delta * 0.05)
+            let newLat = max(0.0005, min(0.5, zoomSpan.latitudeDelta * zoomFactor))
+            let newLon = max(0.0005, min(0.5, zoomSpan.longitudeDelta * zoomFactor))
+            zoomSpan = MKCoordinateSpan(latitudeDelta: newLat, longitudeDelta: newLon)
+            if let loc = locationManager.currentLocation {
+                cameraPosition = .region(MKCoordinateRegion(center: loc.coordinate, span: zoomSpan))
+            }
         }
     }
 
