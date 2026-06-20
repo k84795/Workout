@@ -170,7 +170,7 @@ struct WorkoutView: View {
                                                         .foregroundStyle(.secondary)
                                                         .lineLimit(1)
                                                     Text(formatSplitTime(splits[i]))
-                                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                                                         .foregroundStyle(splitColor(i, fastest: fastest, slowest: slowest))
                                                         .minimumScaleFactor(0.6)
                                                         .lineLimit(1)
