@@ -37,7 +37,9 @@ struct ContentView: View {
             }
 
             if showCountdown {
-                WatchCountdownView {
+                WatchCountdownView(onCancel: {
+                    showCountdown = false
+                }) {
                     startPendingWorkout()
                 }
                 .ignoresSafeArea()

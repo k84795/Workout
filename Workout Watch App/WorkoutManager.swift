@@ -9,6 +9,7 @@ import Foundation
 import HealthKit
 import Combine
 import CoreMotion
+import AVFoundation
 
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
@@ -136,6 +137,11 @@ class WorkoutManager: NSObject, ObservableObject {
 
         if !isAuthorized {
             await requestAuthorization()
+        }
+
+        // AVAudioSession を事前初期化（初回は重いため、WorkoutView 表示前に済ませる）
+        Task.detached(priority: .background) {
+            try? AVAudioSession.sharedInstance().setActive(true)
         }
 
         if CMPedometer.isStepCountingAvailable() {

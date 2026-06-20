@@ -23,33 +23,38 @@ struct WorkoutTypeSelectionView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 0) {
-                List {
-                    ForEach(workoutTypes, id: \.name) { workout in
-                        Button {
-                            guard !workoutManager.isWorkoutActive else { return }
-                            onWorkoutSelected?(workout.type, workout.name)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(workout.icon)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 32, height: 32)
+            VStack(spacing: 0) {
+                ForEach(Array(workoutTypes.enumerated()), id: \.offset) { index, workout in
+                    Button {
+                        guard !workoutManager.isWorkoutActive else { return }
+                        onWorkoutSelected?(workout.type, workout.name)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(workout.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 28, height: 28)
 
-                                Text(workout.name)
-                                    .font(.body)
-                                    .foregroundStyle(workout.color)
+                            Text(workout.name)
+                                .font(.system(size: 24, weight: .semibold))
+                                .lineLimit(1)
+                                .fixedSize(horizontal: true, vertical: false)
+                                .foregroundStyle(workout.color)
 
-                                Spacer()
-                            }
-                            .padding(.vertical, 2)
+                            Spacer()
                         }
-                        .disabled(workoutManager.isWorkoutActive)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, minHeight: 56, maxHeight: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(workoutManager.isWorkoutActive)
+
+                    if index < workoutTypes.count - 1 {
+                        Divider()
                     }
                 }
-                .listStyle(.plain)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -333,6 +338,7 @@ struct WatchWorkoutLapDetailView: View {
 }
 
 struct WatchCountdownView: View {
+    let onCancel: () -> Void
     let onFinish: () -> Void
 
     @State private var count = 3
@@ -369,6 +375,25 @@ struct WatchCountdownView: View {
                 Text("\(count)")
                     .font(.system(size: 64 * sizeScale, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
+            }
+
+            // キャンセルボタン（右上）
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        isDismissed = true
+                        onCancel()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14 * sizeScale, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(10 * sizeScale)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.trailing, 6 * sizeScale)
+                Spacer()
             }
         }
         .onTapGesture {

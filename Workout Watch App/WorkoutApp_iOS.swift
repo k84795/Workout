@@ -58,7 +58,9 @@ struct PhoneContentView: View {
             }
 
             if showCountdown {
-                PhoneCountdownView(workoutName: pendingWorkoutName) {
+                PhoneCountdownView(workoutName: pendingWorkoutName, onCancel: {
+                    showCountdown = false
+                }) {
                     startPendingWorkout()
                 }
                 .ignoresSafeArea()
@@ -185,6 +187,7 @@ struct PhoneWorkoutTypeSelectionView: View {
 
 struct PhoneCountdownView: View {
     let workoutName: String
+    let onCancel: () -> Void
     let onFinish: () -> Void
 
     @State private var count = 3
@@ -222,6 +225,25 @@ struct PhoneCountdownView: View {
                         .font(.system(size: 120, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                 }
+            }
+
+            // キャンセルボタン（右上）
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        isDismissed = true
+                        onCancel()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(16)
+                    }
+                }
+                .padding(.trailing, 28)
+                .padding(.top, 56)
+                Spacer()
             }
         }
         .onTapGesture {

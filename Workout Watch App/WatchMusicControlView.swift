@@ -14,6 +14,7 @@ struct MusicControlView: View {
     @StateObject private var musicManager = WatchMusicConnectivityManager.shared
     @State private var volume: Double = 0.5  // 0.0 ~ 1.0
     @FocusState private var isVolumeFocused: Bool
+    @State private var isInitializingVolume = false
     
     // 画面サイズに応じたスケール係数
     private var sizeScale: CGFloat {
@@ -148,7 +149,7 @@ struct MusicControlView: View {
                 }
                 
                 // Digital Crown対応の音量バー
-                VolumeSliderView(volume: $volume, isFocused: $isVolumeFocused, musicManager: musicManager)
+                VolumeSliderView(volume: $volume, isFocused: $isVolumeFocused, musicManager: musicManager, isInitializingVolume: isInitializingVolume)
                     .frame(height: 6)
             }
             .padding(.horizontal, 10)
@@ -171,14 +172,19 @@ struct MusicControlView: View {
         }
     }
     
-    // システム音量を取得
+    // システム音量を取得（AVAudioSession.setActive は初回が重いのでバックグラウンドで実行）
     private func updateVolumeFromSystem() {
-        do {
-            try AVAudioSession.sharedInstance().setActive(true)
-            volume = Double(AVAudioSession.sharedInstance().outputVolume)
-            print("🔊 Current system volume: \(Int(volume * 100))%")
-        } catch {
-            print("❌ Failed to get system volume: \(error.localizedDescription)")
+        isInitializingVolume = true
+        Task { @MainActor in
+            let vol = await Task.detached(priority: .userInitiated) { () -> Double in
+                try? AVAudioSession.sharedInstance().setActive(true)
+                return Double(AVAudioSession.sharedInstance().outputVolume)
+            }.value
+            volume = vol
+            print("🔊 Current system volume: \(Int(vol * 100))%")
+            // SwiftUI が volume 変更を処理するまで待ってから初期化フラグを解除
+            try? await Task.sleep(for: .milliseconds(50))
+            isInitializingVolume = false
         }
     }
     
@@ -226,6 +232,7 @@ struct VolumeSliderView: View {
     @Binding var volume: Double
     @FocusState.Binding var isFocused: Bool
     @ObservedObject var musicManager: WatchMusicConnectivityManager
+    var isInitializingVolume: Bool
     
     var body: some View {
         GeometryReader { geometry in
@@ -296,8 +303,10 @@ struct VolumeSliderView: View {
             isHapticFeedbackEnabled: false
         )
         .onChange(of: volume) { oldValue, newValue in
-            // 音量変更時のログ
             print("🔊 Volume changed: \(Int(newValue * 100))%")
+            
+            // 初期化中（システム音量の読み込み中）はiPhoneへの送信をスキップ
+            guard !isInitializingVolume else { return }
             
             // ハプティックフィードバック（5%ごと）
             let oldPercent = Int(oldValue * 20)
