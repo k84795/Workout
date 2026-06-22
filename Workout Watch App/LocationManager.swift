@@ -13,6 +13,7 @@ class LocationManager: NSObject, ObservableObject {
     @Published var currentLocation: CLLocation?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published var routeCoordinates: [CLLocationCoordinate2D] = []
+    @Published var startCoordinate: CLLocationCoordinate2D?
 
     private let clManager = CLLocationManager()
     private var isTrackingRoute = false
@@ -30,13 +31,24 @@ class LocationManager: NSObject, ObservableObject {
         clManager.startUpdatingLocation()
     }
 
+    /// ワークアウト選択時点の現在地をスタート座標として確定する
+    func captureStartCoordinate() {
+        guard let current = currentLocation,
+              current.horizontalAccuracy > 0,
+              current.horizontalAccuracy <= 50 else { return }
+        startCoordinate = current.coordinate
+    }
+
     func startRouteTracking() {
         routeCoordinates = []
+        // startCoordinate は captureStartCoordinate() で事前取得済みの場合は保持する。
+        // 未取得の場合は最初の有効な GPS 更新時に設定される。
         isTrackingRoute = true
     }
 
     func stopRouteTracking() {
         isTrackingRoute = false
+        startCoordinate = nil
     }
 }
 
@@ -46,6 +58,9 @@ extension LocationManager: CLLocationManagerDelegate {
         Task { @MainActor in
             self.currentLocation = location
             if self.isTrackingRoute && location.horizontalAccuracy > 0 && location.horizontalAccuracy <= 50 {
+                if self.startCoordinate == nil {
+                    self.startCoordinate = location.coordinate
+                }
                 self.routeCoordinates.append(location.coordinate)
             }
         }

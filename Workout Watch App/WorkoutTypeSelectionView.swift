@@ -393,6 +393,7 @@ struct WatchHistoryRouteMapView: View {
     @State private var crownValue: Double = 0.0
     @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
     @State private var currentCenter: CLLocationCoordinate2D?
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         ZStack {
@@ -412,10 +413,9 @@ struct WatchHistoryRouteMapView: View {
                 }
                 if let last = coordinates.last, coordinates.count > 1 {
                     Annotation("", coordinate: last) {
-                        Circle()
-                            .fill(.red)
-                            .frame(width: 10, height: 10)
-                            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+                        Text("🏁")
+                            .font(.system(size: 22))
+                            .shadow(color: .black.opacity(0.4), radius: 2)
                     }
                     .annotationTitles(.hidden)
                 }
@@ -453,6 +453,7 @@ struct WatchHistoryRouteMapView: View {
             .ignoresSafeArea(edges: .top)
         }
         .focusable()
+        .focused($isFocused)
         .digitalCrownRotation($crownValue, from: -1000.0, through: 1000.0, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: false)
         .onChange(of: crownValue) { oldValue, newValue in
             let delta = newValue - oldValue
@@ -465,6 +466,7 @@ struct WatchHistoryRouteMapView: View {
             }
         }
         .onAppear {
+            isFocused = true
             guard !coordinates.isEmpty else { return }
             let lats = coordinates.map { $0.latitude }
             let lons = coordinates.map { $0.longitude }

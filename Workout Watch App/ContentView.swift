@@ -10,6 +10,7 @@ import HealthKit
 
 struct ContentView: View {
     @EnvironmentObject private var workoutManager: WorkoutManager
+    @StateObject private var locationManager = LocationManager()
     @State private var workoutViewID = 0
     @State private var showCountdown = false
     @State private var pendingWorkoutType: HKWorkoutActivityType?
@@ -19,7 +20,7 @@ struct ContentView: View {
         ZStack {
             Group {
                 if workoutManager.isWorkoutActive {
-                    WorkoutView()
+                    WorkoutView(locationManager: locationManager)
                         .id(workoutViewID)
                         .transition(.opacity)
                 } else {
@@ -55,12 +56,16 @@ struct ContentView: View {
         .task {
             // アプリ起動時に権限リクエストとCoreMotion初期化を先行実行
             await workoutManager.prewarm()
+            // GPS をワークアウト選択画面の段階から起動しておく
+            locationManager.requestAndStart()
         }
     }
 
     private func startWorkoutWithCountdown(type: HKWorkoutActivityType, name: String) {
         pendingWorkoutType = type
         pendingWorkoutName = name
+        // ワークアウト選択ボタンを押した瞬間の GPS 座標をスタート地点として確定
+        locationManager.captureStartCoordinate()
         showCountdown = true
     }
 

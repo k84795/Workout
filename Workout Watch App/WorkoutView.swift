@@ -10,7 +10,7 @@ import MapKit
 
 struct WorkoutView: View {
     @EnvironmentObject var workoutManager: WorkoutManager
-    @StateObject private var locationManager = LocationManager()
+    @ObservedObject var locationManager: LocationManager
     @State private var currentPage = 1
     @State private var isTogglingPause = false
     @State private var isEndingWorkout = false
@@ -89,8 +89,7 @@ struct WorkoutView: View {
             isTogglingPause = false
             isEndingWorkout = false
             isButtonVisible = true
-            // ルート追跡開始
-            locationManager.requestAndStart()
+            // ルート追跡開始（GPS は ContentView で起動済み）
             locationManager.startRouteTracking()
             if workoutManager.isPaused {
                 startBlinking()
@@ -597,6 +596,7 @@ struct WatchWorkoutMapView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var zoomSpan = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
     @State private var crownValue: Double = 0.0
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         ZStack {
@@ -619,6 +619,17 @@ struct WatchWorkoutMapView: View {
                     if locationManager.routeCoordinates.count > 1 {
                         MapPolyline(coordinates: locationManager.routeCoordinates)
                             .stroke(.blue, lineWidth: 4)
+                    }
+                    // スタート地点マーカー（小さい赤丸）
+                    if let startCoord = locationManager.startCoordinate {
+                        Annotation("", coordinate: startCoord) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 10, height: 10)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                .shadow(color: .black.opacity(0.4), radius: 2)
+                        }
+                        .annotationTitles(.hidden)
                     }
                     // 現在地アイコン
                     if let location = locationManager.currentLocation {
@@ -710,6 +721,7 @@ struct WatchWorkoutMapView: View {
             }
         }
         .onAppear {
+            isFocused = true
             // 画面表示・再表示のたびに100m縮尺・現在地へリセット
             let span100m = MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
             zoomSpan = span100m
@@ -723,6 +735,7 @@ struct WatchWorkoutMapView: View {
             }
         }
         .focusable()
+        .focused($isFocused)
         .digitalCrownRotation($crownValue, from: -1000.0, through: 1000.0, sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: false)
         .onChange(of: crownValue) { oldValue, newValue in
             let delta = newValue - oldValue
@@ -747,6 +760,6 @@ struct WatchWorkoutMapView: View {
 }
 
 #Preview {
-    WorkoutView()
+    WorkoutView(locationManager: LocationManager())
         .environmentObject(WorkoutManager())
 }

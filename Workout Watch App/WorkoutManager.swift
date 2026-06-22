@@ -11,6 +11,11 @@ import Combine
 import CoreMotion
 import AVFoundation
 
+// watchOSによるワークアウトセッション回復の通知名（WorkoutApp.swift の AppDelegate と共有）
+extension Notification.Name {
+    static let workoutSessionRecoveryNeeded = Notification.Name("workoutSessionRecoveryNeeded")
+}
+
 @MainActor
 class WorkoutManager: NSObject, ObservableObject {
     let healthStore = HKHealthStore()
@@ -78,10 +83,16 @@ class WorkoutManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
-        
+
         print("🔵 WorkoutManager initialized")
         checkAuthorizationStatus()
-        // 権限リクエストはUIが表示された後に行う（init時には行わない）
+
+        // watchOSがクラッシュ後の再起動でアプリを呼び出した際の通知を監視
+        NotificationCenter.default.addObserver(forName: .workoutSessionRecoveryNeeded, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                await self?.recoverActiveSessionIfNeeded()
+            }
+        }
     }
     
     private func checkAuthorizationStatus() {
@@ -130,10 +141,18 @@ class WorkoutManager: NSObject, ObservableObject {
     }
 
     // アプリ起動直後に呼び出して、初回ワークアウト時の遅延要因を先回りで解消する。
+    // - 強制終了・クラッシュ後の残存セッション回復（最優先）
     // - HealthKit 権限要求（ユーザーの応答を待ってから startWorkout に進める）
     // - CMPedometer の startUpdates/stopUpdates で真のウォームアップ（コールドスタート遅延を防ぐ）
     func prewarm() async {
         guard HKHealthStore.isHealthDataAvailable() else { return }
+
+        // 強制終了・クラッシュ後に残存したセッションを最初に処理する
+        // （残存セッションがあると HealthKit が不安定になりアプリが再起動しないことがある）
+        await recoverActiveSessionIfNeeded()
+
+        // セッションが復元されていたら以降の初期化はスキップ
+        if isWorkoutActive { return }
 
         if !isAuthorized {
             await requestAuthorization()
@@ -150,6 +169,53 @@ class WorkoutManager: NSObject, ObservableObject {
             pedometer.startUpdates(from: Date()) { _, _ in }
             try? await Task.sleep(for: .milliseconds(600))
             pedometer.stopUpdates()
+        }
+    }
+
+    // MARK: - Session Recovery
+
+    private var isRecoveringSession = false
+
+    // 強制終了・クラッシュ後に HealthKit に残存したアクティブセッションを回復またはクリーンアップする。
+    // prewarm() の先頭と watchOS の handleActiveWorkoutRecovery() 通知から呼ばれる。
+    func recoverActiveSessionIfNeeded() async {
+        guard !isWorkoutActive, !isRecoveringSession else { return }
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+
+        isRecoveringSession = true
+        defer { isRecoveringSession = false }
+
+        print("🔄 Checking for active workout session to recover...")
+
+        do {
+            guard let recoveredSession = try await healthStore.recoverActiveWorkoutSession() else {
+                print("ℹ️ No active workout session found")
+                return
+            }
+
+            print("🔄 Found active session, state: \(recoveredSession.state.rawValue)")
+
+            if recoveredSession.state == .running || recoveredSession.state == .paused {
+                let recoveredBuilder = recoveredSession.associatedWorkoutBuilder()
+                recoveredSession.delegate = self
+                recoveredBuilder.delegate = self
+
+                session = recoveredSession
+                builder = recoveredBuilder
+                workoutName = "継続中のワークアウト"
+                workoutStartDate = recoveredSession.startDate
+                lastKmTimestamp = recoveredSession.startDate
+                isWorkoutActive = true
+                isPaused = (recoveredSession.state == .paused)
+                startTimer()
+                print("✅ Workout session recovered (paused: \(isPaused))")
+            } else {
+                // 終了済みなど非アクティブ状態 → 後始末のみ
+                print("ℹ️ Session state \(recoveredSession.state.rawValue) is inactive, ending cleanly")
+                recoveredSession.end()
+            }
+        } catch {
+            print("ℹ️ recoverActiveWorkoutSession: \(error.localizedDescription)")
         }
     }
 
